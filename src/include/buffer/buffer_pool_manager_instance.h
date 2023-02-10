@@ -12,10 +12,11 @@
 
 #pragma once
 
+#include <iostream>
 #include <list>
 #include <mutex>  // NOLINT
 #include <unordered_map>
-
+#include <unordered_set>
 #include "buffer/buffer_pool_manager.h"
 #include "buffer/lru_k_replacer.h"
 #include "common/config.h"
@@ -155,10 +156,10 @@ class BufferPoolManagerInstance : public BufferPoolManager {
   LogManager *log_manager_ __attribute__((__unused__));
   /** Page table for keeping track of buffer pool pages. */
   ExtendibleHashTable<page_id_t, frame_id_t> *page_table_;
-  /** Replacer to find unpinned pages for replacement. */
+  ///** Replacer to find unpinned pages for replacement. */
   LRUKReplacer *replacer_;
   /** List of free frames that don't have any pages on them. */
-  std::list<frame_id_t> free_list_;
+  std::unordered_set<frame_id_t> free_list_;
   /** This latch protects shared data structures. We recommend updating this comment to describe what it protects. */
   std::mutex latch_;
 

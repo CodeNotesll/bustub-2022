@@ -22,7 +22,7 @@
 #include <mutex>  // NOLINT
 #include <utility>
 #include <vector>
-
+#include "common/rwlatch.h"
 #include "container/hash/hash_table.h"
 
 namespace bustub {
@@ -115,6 +115,9 @@ class ExtendibleHashTable : public HashTable<K, V> {
     /** @brief Check if a bucket is full. */
     inline auto IsFull() const -> bool { return list_.size() == size_; }
 
+    /** @brief Check if overflow occurs. */
+    inline auto Isoverflow() const -> bool { return list_.size() == size_ + 1; }
+
     /** @brief Get the local depth of the bucket. */
     inline auto GetDepth() const -> int { return depth_; }
 
@@ -172,6 +175,7 @@ class ExtendibleHashTable : public HashTable<K, V> {
   size_t bucket_size_;  // The size of a bucket
   int num_buckets_;     // The number of buckets in the hash table
   mutable std::mutex latch_;
+  ReaderWriterLatch rwlatch_;
   std::vector<std::shared_ptr<Bucket>> dir_;  // The directory of the hash table
 
   // The following functions are completely optional, you can delete them if you have your own ideas.

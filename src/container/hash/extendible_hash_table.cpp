@@ -106,23 +106,25 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
       dir_[i] = dir_[i - old_len];
     }
     new_index = index + old_len;
-  } else {
-    size_t old_len = 1 << global_depth_;
-    for (size_t i = 0; i < old_len; ++i) {
-      if (i != index && dir_[index] == dir_[i]) {
-        new_index = i;
-        break;
-      }
-    }
   }
+  // else {
+  //   size_t old_len = 1 << global_depth_;
+  //   for (size_t i = 0; i < old_len; ++i) {
+  //     if (i != index && dir_[index] == dir_[i]) {
+  //       new_index = i;
+  //       break;
+  //     }
+  //   }
+  // }
 
   // split
   dir_[index]->IncrementDepth();
-  dir_[new_index] = std::make_shared<Bucket>(bucket_size_, dir_[index]->GetDepth());
-  for (auto it = dir_[index]->GetItems().begin(); it != dir_[index]->GetItems().end();) {
+  auto p = dir_[index];
+  dir_[new_index] = std::make_shared<Bucket>(bucket_size_, p->GetDepth());
+  for (auto it = p->GetItems().begin(); it != p->GetItems().end();) {
     if (IndexOf(it->first) == new_index) {
       dir_[new_index]->GetItems().insert(dir_[new_index]->GetItems().begin(), *it);
-      it = dir_[index]->GetItems().erase(it);
+      it = p->GetItems().erase(it);
     } else {
       it++;
     }
