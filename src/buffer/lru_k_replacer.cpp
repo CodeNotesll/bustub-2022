@@ -13,74 +13,88 @@
 
 namespace bustub {
 
-LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k)
-    : replacer_size_(num_frames), k_(k), head_(nullptr), rear_(nullptr) {}
+LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k) {}
 
-LRUKReplacer::~LRUKReplacer() {
-  while (head_ != nullptr) {
-    auto cur = head_;
-    head_ = head_->next_;
-    delete cur;
-  }
-}
 auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
-  size_t cur_diff = 0;
-  size_t cur_stamp = current_timestamp_;
+  latch_.lock();
+  size_t distance = 0;
+  size_t eraliset_timestamp = current_timestamp_;
   bool found = false;
   frame_id_t id;
-  for (auto p = head_; p != nullptr; p = p->next_) {
-    if (!p->evictable_) {
+  for (const auto &p : record_list_) {
+    if (!p.evictable_) {
       continue;
     }
-    if (p->diff_ > cur_diff) {
-      cur_diff = p->diff_;
-      id = p->frame_id_;
-      found = true;
-    } else if (p->diff_ == cur_diff) {
-      if (p->que_.front() <= cur_stamp) {
-        cur_stamp = p->que_.front();
-        id = p->frame_id_;
+    if (p.que_.size() < k_) {  // find inf
+      if (eraliset_timestamp > p.que_.front()) {
+        eraliset_timestamp = p.que_.front();
+        id = p.frame_id_;
         found = true;
       }
     }
   }
-  if (!found) {
-    return false;
+  if (found) {
+    *frame_id = id;
+    auto p = mp_[id];
+    record_list_.erase(p);
+    curr_size_--;
+    mp_.erase(id);
+    latch_.unlock();
+    return true;
   }
-  *frame_id = id;
-  Remove(id);
-  return true;
+
+  for (const auto &p : record_list_) {
+    if (!p.evictable_) {
+      continue;
+    }
+    if (p.que_.size() == k_) {
+      if (distance < current_timestamp_ - p.que_.front()) {
+        distance = current_timestamp_ - p.que_.front();
+        id = p.frame_id_;
+        found = true;
+      }
+    }
+  }
+  if (found) {
+    *frame_id = id;
+    auto p = mp_[id];
+    record_list_.erase(p);
+    curr_size_--;
+    mp_.erase(id);
+    latch_.unlock();
+    return true;
+  }
+  latch_.unlock();
+  return false;
 }
 
 void LRUKReplacer::RecordAccess(frame_id_t frame_id) {
+  latch_.lock();
   BUSTUB_ASSERT(frame_id < static_cast<int32_t>(replacer_size_), "frame_id should be less than replacer_size_");
   current_timestamp_++;
   if (mp_.count(frame_id) != 0) {
-    historyNode *p = mp_[frame_id];
+    auto p = mp_[frame_id];
     p->que_.push(current_timestamp_);
     if (p->que_.size() == k_ + 1) {
       p->que_.pop();
     }
-    if (p->que_.size() == k_) {
-      p->diff_ = current_timestamp_ - p->que_.front();
-    }
   } else {
-    historyNode *oldhead = head_;
-    head_ = new History(frame_id);
-    head_->que_.push(current_timestamp_);
-    head_->next_ = oldhead;
-    if (oldhead != nullptr) {
-      oldhead->pre_ = head_;
-    } else {
-      rear_ = head_;
-    }
-    mp_[frame_id] = head_;
+    Record rec(frame_id);
+    rec.que_.push(current_timestamp_);
+    record_list_.insert(record_list_.begin(), rec);
+    mp_[frame_id] = record_list_.begin();
   }
+  latch_.unlock();
 }
 
 void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
+  latch_.lock();
   BUSTUB_ASSERT(frame_id < static_cast<int32_t>(replacer_size_), "frame_id should be less than replacer_size_");
-  BUSTUB_ASSERT(mp_.count(frame_id), "frame should be have been recorded");
+  if (mp_.count(frame_id) == 0) {  // 还没有记录
+    Record rec(frame_id);
+    record_list_.insert(record_list_.begin(), rec);
+    mp_[frame_id] = record_list_.begin();
+  }
   auto p = mp_[frame_id];
   if (set_evictable && !p->evictable_) {
     curr_size_++;
@@ -89,42 +103,32 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
     curr_size_--;
   }
   p->evictable_ = set_evictable;
+  latch_.unlock();
 }
 
 void LRUKReplacer::Remove(frame_id_t frame_id) {  // O(1)
+  latch_.lock();
   BUSTUB_ASSERT(frame_id < static_cast<int32_t>(replacer_size_), "frame_id should be less than replacer_size_");
   if (mp_.count(frame_id) == 0U) {
+    latch_.unlock();
     return;
   }
   auto p = mp_[frame_id];
   BUSTUB_ASSERT(p->evictable_, "removed frame should be evictable");
-  if (p == head_) {
-    head_ = head_->next_;
-    if (head_ != nullptr) {
-      head_->pre_ = nullptr;
-    } else {
-      rear_ = head_;
-    }
-  } else if (p == rear_) {
-    rear_ = rear_->pre_;
-    if (rear_ != nullptr) {
-      rear_->next_ = nullptr;
-    } else {
-      head_ = rear_;
-    }
-  } else {
-    auto pre = p->pre_;
-    auto next = p->next_;
-    pre->next_ = next;
-    next->pre_ = pre;
-  }
-  p->pre_ = nullptr;
-  p->next_ = nullptr;
-  delete p;
+  record_list_.erase(p);
   curr_size_--;
   mp_.erase(frame_id);
+  latch_.unlock();
 }
 
-auto LRUKReplacer::Size() -> size_t { return curr_size_; }
+auto LRUKReplacer::Size() -> size_t {
+  size_t s = 0;
+  for (const auto &p : record_list_) {
+    if (p.evictable_) {
+      s++;
+    }
+  }
+  return s;
+}
 
 }  // namespace bustub

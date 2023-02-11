@@ -23,10 +23,9 @@ namespace bustub {
 
 template <typename K, typename V>
 ExtendibleHashTable<K, V>::ExtendibleHashTable(size_t bucket_size)
-    : global_depth_(1), bucket_size_(bucket_size), num_buckets_(2) {
-  dir_.resize(2);
-  dir_[0] = std::make_shared<Bucket>(bucket_size_, 1);
-  dir_[1] = std::make_shared<Bucket>(bucket_size_, 1);
+    : global_depth_(0), bucket_size_(bucket_size), num_buckets_(1) {  //
+  dir_.resize(1);
+  dir_[0] = std::make_shared<Bucket>(bucket_size_, 0);
 }
 
 template <typename K, typename V>
@@ -95,44 +94,49 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
     rwlatch_.WUnlock();
     return;
   }
-
-  size_t new_index = index;
-  if (dir_[index]->GetDepth() == global_depth_) {  // double
-    int old_len = 1 << global_depth_;
-    global_depth_++;
-    int new_len = 1 << global_depth_;
-    dir_.resize(new_len);
-    for (int i = old_len; i < new_len; ++i) {
-      dir_[i] = dir_[i - old_len];
+  // RedistributeBucket(index);
+  std::queue<size_t> que;
+  que.push(index);
+  while (!que.empty()) {
+    std::cout << "overflow!" << std::endl;
+    index = que.front();
+    que.pop();
+    size_t new_index = index;  // local depth equals to global depth; double directories
+    if (dir_[index]->GetDepth() == global_depth_) {
+      int old_len = 1 << global_depth_;
+      global_depth_++;
+      int new_len = 1 << global_depth_;
+      dir_.resize(new_len);
+      for (int i = old_len; i < new_len; ++i) {
+        dir_[i] = dir_[i - old_len];
+      }
+      new_index = index + old_len;
     }
-    new_index = index + old_len;
-  }
-  // else {
-  //   size_t old_len = 1 << global_depth_;
-  //   for (size_t i = 0; i < old_len; ++i) {
-  //     if (i != index && dir_[index] == dir_[i]) {
-  //       new_index = i;
-  //       break;
-  //     }
-  //   }
-  // }
-
-  // split
-  dir_[index]->IncrementDepth();
-  auto p = dir_[index];
-  dir_[new_index] = std::make_shared<Bucket>(bucket_size_, p->GetDepth());
-  for (auto it = p->GetItems().begin(); it != p->GetItems().end();) {
-    if (IndexOf(it->first) == new_index) {
-      dir_[new_index]->GetItems().insert(dir_[new_index]->GetItems().begin(), *it);
-      it = p->GetItems().erase(it);
-    } else {
-      it++;
+    // split overflowed buckets
+    dir_[index]->IncrementDepth();
+    auto p = dir_[index];
+    dir_[new_index] = std::make_shared<Bucket>(bucket_size_, p->GetDepth());
+    for (auto it = p->GetItems().begin(); it != p->GetItems().end();) {
+      if (IndexOf(it->first) == new_index) {
+        dir_[new_index]->GetItems().insert(dir_[new_index]->GetItems().begin(), *it);
+        it = p->GetItems().erase(it);
+      } else {
+        it++;
+      }
+    }
+    num_buckets_++;
+    if (dir_[index]->Isoverflow()) {
+      que.push(index);
+    }
+    if (dir_[new_index]->Isoverflow()) {
+      que.push(new_index);
     }
   }
-  num_buckets_++;
   rwlatch_.WUnlock();
 }
 
+template <typename K, typename V>
+void ExtendibleHashTable<K, V>::RedistributeBucket(size_t ind) {}
 //===--------------------------------------------------------------------===//
 // Bucket
 //===--------------------------------------------------------------------===//

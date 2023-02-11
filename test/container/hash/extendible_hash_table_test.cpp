@@ -18,8 +18,9 @@ TEST(ExtendibleHashTableTest, SampleTest) {
   std::string result;
   table->Find(2, result);
   EXPECT_EQ("b", result);
-  EXPECT_EQ(2, table->GetNumBuckets());
-  EXPECT_EQ(1, table->GetLocalDepth(0));
+  EXPECT_EQ(1, table->GetNumBuckets());
+  EXPECT_EQ(0, table->GetLocalDepth(0));
+  EXPECT_EQ(1, table->GetNumBuckets());
   table->Insert(3, "c");
   table->Insert(4, "d");
   EXPECT_EQ(2, table->GetNumBuckets());

@@ -55,7 +55,7 @@ class LRUKReplacer {
    *
    * @brief Destroys the LRUReplacer.
    */
-  ~LRUKReplacer();
+  ~LRUKReplacer() = default;
 
   /**
    * TODO(P1): Add implementation
@@ -143,24 +143,14 @@ class LRUKReplacer {
   size_t replacer_size_;
   size_t k_;
   std::mutex latch_;
-  struct History {
+  struct Record {
     frame_id_t frame_id_;
     bool evictable_;
-    size_t diff_;
     std::queue<size_t> que_;
-    History *pre_;
-    History *next_;
-    explicit History(frame_id_t frame_id) : frame_id_(frame_id) {
-      evictable_ = false;
-      diff_ = ULLONG_MAX;
-      pre_ = nullptr;
-      next_ = nullptr;
-    }
+    explicit Record(frame_id_t frame_id) : frame_id_(frame_id) { evictable_ = true; }
   };
-  using historyNode = History;
-  historyNode *head_;
-  historyNode *rear_;
-  std::unordered_map<frame_id_t, historyNode *> mp_;
+  std::list<Record> record_list_;
+  std::unordered_map<frame_id_t, decltype(record_list_.begin())> mp_;
 };
 
 }  // namespace bustub

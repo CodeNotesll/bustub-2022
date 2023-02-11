@@ -20,6 +20,7 @@
 #include <list>
 #include <memory>
 #include <mutex>  // NOLINT
+#include <queue>
 #include <utility>
 #include <vector>
 #include "common/rwlatch.h"
@@ -184,7 +185,7 @@ class ExtendibleHashTable : public HashTable<K, V> {
    * @brief Redistribute the kv pairs in a full bucket.
    * @param bucket The bucket to be redistributed.
    */
-  auto RedistributeBucket(std::shared_ptr<Bucket> bucket) -> void;
+  auto RedistributeBucket(size_t index) -> void;
 
   /*****************************************************************
    * Must acquire latch_ first before calling the below functions. *
