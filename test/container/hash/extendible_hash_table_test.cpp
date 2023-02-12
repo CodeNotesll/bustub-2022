@@ -41,6 +41,10 @@ TEST(ExtendibleHashTableTest, SampleTest) {
   // table->Find(6, result);
   EXPECT_TRUE(table->Find(6, result));
   EXPECT_EQ("f", result);
+  EXPECT_TRUE(table->Find(4, result));
+  EXPECT_EQ("d", result);
+  EXPECT_TRUE(table->Find(2, result));
+  EXPECT_EQ("b", result);
   table->Insert(7, "g");
   table->Insert(8, "h");
   table->Find(2, result);
@@ -79,7 +83,16 @@ TEST(ExtendibleHashTableTest, SampleTest) {
   EXPECT_TRUE(table->Remove(1));
   EXPECT_FALSE(table->Remove(20));
 }
-
+TEST(ExtendibleHashTableTest, SimpleTest) {
+  auto table = std::make_unique<ExtendibleHashTable<int, std::string>>(1);
+  table->Insert(0, "a");
+  EXPECT_EQ(1, table->GetNumBuckets());
+  EXPECT_EQ(0, table->GetLocalDepth(0));
+  table->Insert(0, "b");
+  std::string result;
+  table->Find(0, result);
+  EXPECT_EQ("b", result);
+}
 TEST(ExtendibleHashTableTest, ConcurrentInsertTest) {
   const int num_runs = 50;
   const int num_threads = 3;

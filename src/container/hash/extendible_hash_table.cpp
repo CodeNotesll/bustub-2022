@@ -25,7 +25,7 @@ template <typename K, typename V>
 ExtendibleHashTable<K, V>::ExtendibleHashTable(size_t bucket_size)
     : global_depth_(0), bucket_size_(bucket_size), num_buckets_(1) {  //
   dir_.resize(1);
-  dir_[0] = std::make_shared<Bucket>(bucket_size_, 0);
+  dir_[0] = std::make_shared<Bucket>(bucket_size_);
 }
 
 template <typename K, typename V>
@@ -89,49 +89,47 @@ template <typename K, typename V>
 void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
   rwlatch_.WLock();
   size_t index = IndexOf(key);
-  dir_[index]->Insert(key, value);
-  if (!dir_[index]->Isoverflow()) {
+  if (bucket_size_ == 0 || dir_[index]->Update(key, value)) {
     rwlatch_.WUnlock();
     return;
   }
-  // RedistributeBucket(index);
-  std::queue<size_t> que;
-  que.push(index);
-  while (!que.empty()) {
-    std::cout << "overflow!" << std::endl;
-    index = que.front();
-    que.pop();
-    size_t new_index = index;  // local depth equals to global depth; double directories
+  while (dir_[index]->IsFull()) {
+    // size_t new_index = index;  // local depth equals to global depth; double directories
     if (dir_[index]->GetDepth() == global_depth_) {
-      int old_len = 1 << global_depth_;
+      int old_len = dir_.size();
       global_depth_++;
       int new_len = 1 << global_depth_;
       dir_.resize(new_len);
       for (int i = old_len; i < new_len; ++i) {
         dir_[i] = dir_[i - old_len];
       }
-      new_index = index + old_len;
     }
     // split overflowed buckets
-    dir_[index]->IncrementDepth();
     auto p = dir_[index];
-    dir_[new_index] = std::make_shared<Bucket>(bucket_size_, p->GetDepth());
-    for (auto it = p->GetItems().begin(); it != p->GetItems().end();) {
-      if (IndexOf(it->first) == new_index) {
-        dir_[new_index]->GetItems().insert(dir_[new_index]->GetItems().begin(), *it);
-        it = p->GetItems().erase(it);
+    int mask = 1 << p->GetDepth();
+    auto zero_bucket = std::make_shared<Bucket>(bucket_size_, p->GetDepth() + 1);
+    auto one_bucket = std::make_shared<Bucket>(bucket_size_, p->GetDepth() + 1);
+    for (auto it = p->GetItems().begin(); it != p->GetItems().end(); it++) {
+      if ((std::hash<K>()(it->first) & mask) != 0) {
+        one_bucket->GetItems().insert(one_bucket->GetItems().begin(), *it);
       } else {
-        it++;
+        zero_bucket->GetItems().insert(zero_bucket->GetItems().begin(), *it);
       }
     }
     num_buckets_++;
-    if (dir_[index]->Isoverflow()) {
-      que.push(index);
+    for (size_t i = 0; i < dir_.size(); ++i) {
+      if (dir_[i] == p) {
+        if ((i & mask) != 0) {
+          dir_[i] = one_bucket;
+        } else {
+          dir_[i] = zero_bucket;
+        }
+      }
     }
-    if (dir_[new_index]->Isoverflow()) {
-      que.push(new_index);
-    }
+    index = IndexOf(key);
   }
+  index = IndexOf(key);
+  dir_[index]->Insert(key, value);
   rwlatch_.WUnlock();
 }
 
@@ -167,14 +165,19 @@ auto ExtendibleHashTable<K, V>::Bucket::Remove(const K &key) -> bool {
 
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::Bucket::Insert(const K &key, const V &value) -> bool {
+  list_.insert(list_.begin(), {key, value});
+  return true;
+}
+
+template <typename K, typename V>
+auto ExtendibleHashTable<K, V>::Bucket::Update(const K &key, const V &value) -> bool {
   for (auto &[k, v] : list_) {
     if (k == key) {
       v = value;
       return true;
     }
   }
-  list_.insert(list_.begin(), {key, value});
-  return true;
+  return false;
 }
 
 template class ExtendibleHashTable<page_id_t, Page *>;
