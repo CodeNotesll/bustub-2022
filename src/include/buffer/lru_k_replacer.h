@@ -147,7 +147,7 @@ class LRUKReplacer {
     frame_id_t frame_id_;
     bool evictable_;
     std::queue<size_t> que_;
-    explicit Record(frame_id_t frame_id) : frame_id_(frame_id) { evictable_ = true; }
+    explicit Record(frame_id_t frame_id) : frame_id_(frame_id) { evictable_ = false; }
   };
   std::list<Record> record_list_;
   std::unordered_map<frame_id_t, decltype(record_list_.begin())> mp_;

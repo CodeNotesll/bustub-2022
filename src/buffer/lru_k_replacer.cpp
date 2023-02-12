@@ -18,7 +18,7 @@ LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_fra
 auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
   latch_.lock();
   size_t distance = 0;
-  size_t eraliset_timestamp = current_timestamp_;
+  size_t eraliset_timestamp = ++current_timestamp_;
   bool found = false;
   frame_id_t id;
   for (const auto &p : record_list_) {
@@ -91,9 +91,8 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
   latch_.lock();
   BUSTUB_ASSERT(frame_id < static_cast<int32_t>(replacer_size_), "frame_id should be less than replacer_size_");
   if (mp_.count(frame_id) == 0) {  // 还没有记录
-    Record rec(frame_id);
-    record_list_.insert(record_list_.begin(), rec);
-    mp_[frame_id] = record_list_.begin();
+    latch_.unlock();
+    return;
   }
   auto p = mp_[frame_id];
   if (set_evictable && !p->evictable_) {
@@ -121,14 +120,6 @@ void LRUKReplacer::Remove(frame_id_t frame_id) {  // O(1)
   latch_.unlock();
 }
 
-auto LRUKReplacer::Size() -> size_t {
-  size_t s = 0;
-  for (const auto &p : record_list_) {
-    if (p.evictable_) {
-      s++;
-    }
-  }
-  return s;
-}
+auto LRUKReplacer::Size() -> size_t { return curr_size_; }
 
 }  // namespace bustub
