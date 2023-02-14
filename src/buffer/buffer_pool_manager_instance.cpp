@@ -36,13 +36,11 @@ BufferPoolManagerInstance::~BufferPoolManagerInstance() {
   delete page_table_;
   delete replacer_;
 }
-
-auto BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) -> Page * {
-  std::scoped_lock<std::mutex> lock(latch_);
+auto BufferPoolManagerInstance::GetFrameId(frame_id_t *fid) -> bool {
   frame_id_t frame_id;
   if (free_list_.empty()) {
     if (!replacer_->Evict(&frame_id)) {
-      return nullptr;
+      return false;
     }
     page_id_t id = pages_[frame_id].page_id_;
     if (pages_[frame_id].is_dirty_) {
@@ -54,16 +52,26 @@ auto BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) -> Page * {
     frame_id = free_list_.front();
     free_list_.pop_front();
   }
-
-  page_id_t id = AllocatePage();
-  page_table_->Insert(id, frame_id);
+  *fid = frame_id;
+  return true;
+}
+void BufferPoolManagerInstance::Init(frame_id_t frame_id, page_id_t page_id) {
+  page_table_->Insert(page_id, frame_id);
   replacer_->RecordAccess(frame_id);
   replacer_->SetEvictable(frame_id, false);
-  *page_id = id;
   pages_[frame_id].is_dirty_ = false;
   pages_[frame_id].pin_count_ = 1;
-  pages_[frame_id].page_id_ = id;
-  // disk_manager_->ReadPage(id, pages_[frame_id].data_);
+  pages_[frame_id].page_id_ = page_id;
+}
+auto BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) -> Page * {
+  std::scoped_lock<std::mutex> lock(latch_);
+  frame_id_t frame_id;
+  if (!GetFrameId(&frame_id)) {
+    return nullptr;
+  }
+  page_id_t id = AllocatePage();
+  *page_id = id;
+  Init(frame_id, id);
   return &pages_[frame_id];
 }
 
@@ -76,28 +84,12 @@ auto BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) -> Page * {
     pages_[frame_id].pin_count_++;
     return &pages_[frame_id];
   }
-  if (free_list_.empty()) {
-    if (!replacer_->Evict(&frame_id)) {
-      return nullptr;
-    }
-    page_id_t id = pages_[frame_id].page_id_;
-    if (pages_[frame_id].is_dirty_) {
-      disk_manager_->WritePage(id, pages_[frame_id].data_);
-    }
-    pages_[frame_id].ResetMemory();
-    page_table_->Remove(id);
-  } else {
-    frame_id = free_list_.front();
-    free_list_.pop_front();
-  }
 
-  page_table_->Insert(page_id, frame_id);
-  replacer_->RecordAccess(frame_id);
-  replacer_->SetEvictable(frame_id, false);
-  pages_[frame_id].is_dirty_ = false;
-  pages_[frame_id].ResetMemory();  // 设置初始内容
-  pages_[frame_id].pin_count_ = 1;
-  pages_[frame_id].page_id_ = page_id;
+  if (!GetFrameId(&frame_id)) {
+    return nullptr;
+  }
+  // pages_[frame_id].ResetMemory();  // 设置初始内容
+  Init(frame_id, page_id);
   disk_manager_->ReadPage(page_id, pages_[frame_id].data_);
   return &pages_[frame_id];
 }
@@ -105,8 +97,7 @@ auto BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) -> Page * {
 auto BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) -> bool {
   // 做两件事
   // 1. 设置标志位
-  // 2. 查看frame的pin_count_是否为0
-  // 3.
+  // 2. 设置pin_count_
   std::scoped_lock<std::mutex> lock(latch_);
   frame_id_t frame_id;
   if (!page_table_->Find(page_id, frame_id)) {

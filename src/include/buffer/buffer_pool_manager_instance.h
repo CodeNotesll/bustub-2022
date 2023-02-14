@@ -142,17 +142,15 @@ class BufferPoolManagerInstance : public BufferPoolManager {
   auto DeletePgImp(page_id_t page_id) -> bool override;
 
   /**
-   * @brief
-   *
-   * @param frame_id
-   * @return true
-   * @return false
+   * @brief called by NewPgImp() and FetchPgImp() get free frame_id
+   * find in the free list first, then try to evict by replacer
+   * @param[out] frame_id
+   * @return false if free_list is empty and no evictable frame exists, true otherwise
    */
-  auto GetFrameId(frame_id_t *frame_id) -> bool;
+  auto GetFrameId(frame_id_t *fid) -> bool;
 
   /**
-   * @brief
-   *
+   * @brief called by NewPgImp() and FetchPgImp() when a new page arrives in buffer
    */
   void Init(frame_id_t frame_id, page_id_t page_id);
   /** Number of pages in the buffer pool. */
