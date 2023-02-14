@@ -106,25 +106,35 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
     }
     // split overflowed buckets
     auto p = dir_[index];
-    int mask = 1 << p->GetDepth();
-    auto zero_bucket = std::make_shared<Bucket>(bucket_size_, p->GetDepth() + 1);
-    auto one_bucket = std::make_shared<Bucket>(bucket_size_, p->GetDepth() + 1);
-    for (auto it = p->GetItems().begin(); it != p->GetItems().end(); it++) {
-      if ((std::hash<K>()(it->first) & mask) != 0) {
-        one_bucket->GetItems().insert(one_bucket->GetItems().begin(), *it);
+    int old_local_depth = p->GetDepth();
+    int local_depth_bits = std::hash<K>()(key) & ((1 << old_local_depth) - 1);  // 低位
+    size_t new_bucket_id = (1 << old_local_depth) | local_depth_bits;
+    int mask = 1 << old_local_depth;
+    p->IncrementDepth();
+    // auto zero_bucket = std::make_shared<Bucket>(bucket_size_, p->GetDepth() + 1);
+    auto new_bucket = std::make_shared<Bucket>(bucket_size_, p->GetDepth());
+    for (auto it = p->GetItems().begin(); it != p->GetItems().end();) {
+      if ((std::hash<K>()(it->first) & mask) != 0) {  // 将桶里面第local depth 为1的key分离出来
+        new_bucket->GetItems().insert(new_bucket->GetItems().begin(), *it);
+        it = p->GetItems().erase(it);
       } else {
-        zero_bucket->GetItems().insert(zero_bucket->GetItems().begin(), *it);
+        it++;
       }
     }
     num_buckets_++;
-    for (size_t i = 0; i < dir_.size(); ++i) {
-      if (dir_[i] == p) {
-        if ((i & mask) != 0) {
-          dir_[i] = one_bucket;
-        } else {
-          dir_[i] = zero_bucket;
-        }
-      }
+    // for (size_t i = 0; i < dir_.size(); ++i) {
+    //   if (dir_[i] == p) {
+    //     if ((i & mask) != 0) {
+    //       dir_[i] = one_bucket;
+    //     } else {
+    //       dir_[i] = zero_bucket;
+    //     }
+    //   }
+    // }
+    size_t increment = 1 << new_bucket->GetDepth();
+    while (new_bucket_id < dir_.size()) {
+      dir_[new_bucket_id] = new_bucket;
+      new_bucket_id += increment;
     }
     index = IndexOf(key);
   }
