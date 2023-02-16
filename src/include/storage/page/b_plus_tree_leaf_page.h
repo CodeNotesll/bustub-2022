@@ -36,7 +36,7 @@ namespace bustub {
  * | PageType (4) | LSN (4) | CurrentSize (4) | MaxSize (4) |
  *  ---------------------------------------------------------------------
  *  -----------------------------------------------
- * | ParentPageId (4) | PageId (4) | NextPageId (4)
+ * | ParentPageId (4) | PageId (4) | NextPageId (4)   // NextPageId：尾指针，相邻的叶子节点
  *  -----------------------------------------------
  */
 INDEX_TEMPLATE_ARGUMENTS
