@@ -160,9 +160,9 @@ auto BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) -> bool {
   if (pages_[frame_id].pin_count_ != 0) {
     return false;
   }
-  if (pages_[frame_id].is_dirty_) {
-    disk_manager_->WritePage(page_id, pages_[frame_id].data_);  // 写回磁盘
-  }
+  // if (pages_[frame_id].is_dirty_) { // 直接删除了， 可能发生在B+节点合并时
+  //   disk_manager_->WritePage(page_id, pages_[frame_id].data_);  // 写回磁盘
+  // }
 
   pages_[frame_id].ResetMemory();
   pages_[frame_id].is_dirty_ = false;
@@ -172,6 +172,7 @@ auto BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) -> bool {
   free_list_.push_back(frame_id);
   page_table_->Remove(page_id);
   replacer_->Remove(frame_id);
+  DeallocatePage(page_id);
   return true;
 }
 
