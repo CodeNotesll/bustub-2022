@@ -317,10 +317,15 @@ void BPLUSTREE_TYPE::DeleteEntry(BPlusTreePage *page, const KeyType &key) {
     max_size--;
   }
   int min_size = page->GetMinSize();
+  if (size >= min_size) {  // 如果满足了下限
+    buffer_pool_manager_->UnpinPage(page->GetPageId(), true);
+    return;
+  }
   // 问题是如果b+树中只有一个叶子节点，这个叶子节点也是根节点，size < 2，显然不能删除节点
-  if (page->IsRootPage() && size < min_size) {  // only one pointer left;
-    if (page->IsLeafPage()) {                   // 也是叶子节点
-      if (size == 0) {                          // 唯一的节点中没有元素了
+  // size < min_size
+  if (page->IsRootPage()) {    // only one pointer left;
+    if (page->IsLeafPage()) {  // 也是叶子节点
+      if (size == 0) {         // 唯一的节点中没有元素了
         buffer_pool_manager_->UnpinPage(root_page_id_, true);
         buffer_pool_manager_->DeletePage(root_page_id_);  // 删除这一页, 清空B+树
         root_page_id_ = INVALID_PAGE_ID;
@@ -339,10 +344,7 @@ void BPLUSTREE_TYPE::DeleteEntry(BPlusTreePage *page, const KeyType &key) {
     }
     return;
   }
-  if (size >= min_size) {
-    buffer_pool_manager_->UnpinPage(page->GetPageId(), true);
-    return;
-  }
+
   // 不是 root 或者 page->GetSize() >= page->GetMinSize()
   // ************************** merge or redistribute ********************************
   // find siblings
@@ -409,100 +411,96 @@ void BPLUSTREE_TYPE::DeleteEntry(BPlusTreePage *page, const KeyType &key) {
     buffer_pool_manager_->DeletePage(page->GetPageId());  // unpin 右边孩子并且删除节点
     // 继续在父节点删除指向右边孩子的k
     DeleteEntry(parent, k);
-  } else {                       //****************************** 重分配 ******************
-    if (flag) {                  // flag为真，sibling_page 在左边 （sibling_page, page)
-      if (page->IsLeafPage()) {  // ***********叶子节点重分配***************
-        auto *leaf_sibling_page = reinterpret_cast<LeafPage *>(sibling_page);
-        auto *leaf_page = reinterpret_cast<LeafPage *>(page);
-        // 删除左孩子中最后一个（last_k,last_v)
-        KeyType last_k = leaf_sibling_page->KeyAt(sibling_size - 1);
-        ValueType last_v = leaf_sibling_page->ValueAt(sibling_size - 1);
-        leaf_sibling_page->SetSize(sibling_size - 1);  // 没有移动数据只是 修改大小  ????????
-        // 右孩子中(k,v) 右移
-        auto src = leaf_page->GetPointer(0);
-        auto dst = leaf_page->GetPointer(1);
-        memmove(static_cast<void *>(dst), static_cast<void *>(src), size * leaf_page->GetMappingTypeSize());
-        // 将(last_k, last_v) 设为右孩子第一个节点
-        leaf_page->SetKeyAt(0, last_k);
-        leaf_page->SetValueAt(0, last_v);
-        leaf_page->SetSize(size + 1);
-        // 将parent中指向右边孩子的k 设置为last_k, 保持有序性
-        parent->SetKeyAt(k_index, last_k);
-        // unpin 左右孩子，已经父节点
-        buffer_pool_manager_->UnpinPage(parent_id, true);
-        buffer_pool_manager_->UnpinPage(sibling_id, true);
-        buffer_pool_manager_->UnpinPage(page_id, true);
-      } else {  // ******************* 非叶子结点重分配**************
-        auto *internal_sibling_page = reinterpret_cast<InternalPage *>(sibling_page);  // 左边
-        auto *internal_page = reinterpret_cast<InternalPage *>(page);
-        // 删除左边孩子的最后一个 (last_k, last_v)
-        KeyType last_k = internal_sibling_page->KeyAt(sibling_size - 1);
-        page_id_t last_v = internal_sibling_page->ValueAt(sibling_size - 1);
-        internal_sibling_page->SetSize(sibling_size - 1);
-        // 将右边第一个key设为父节点中指向右边孩子的k, 将所有k/v右移
-        internal_page->SetKeyAt(0, k);
-        auto src = internal_page->GetPointer(0);
-        auto dst = internal_page->GetPointer(1);
-        memmove(static_cast<void *>(dst), static_cast<void *>(src), size * internal_page->GetMappingTypeSize());
-        // 右移之后将第一个value设为做孩子最后一个value
-        internal_page->SetValueAt(0, last_v);
-        internal_page->SetSize(size + 1);
-        // 右孩子第一个k变了，修改parent中指向右孩子的k为左孩子的最后一个key
-        parent->SetKeyAt(k_index, last_k);
-        // unpin 左右两个孩子以及父亲节点
-        buffer_pool_manager_->UnpinPage(sibling_id, true);
-        buffer_pool_manager_->UnpinPage(page_id, true);
-        buffer_pool_manager_->UnpinPage(parent_id, true);
-      }
-    } else {                             // flag 为假， page 在左边 sibling_page 在右边 (page, sibling_page)
-      if (sibling_page->IsLeafPage()) {  // ***********叶子节点重分配***************
-        auto *leaf_page = reinterpret_cast<LeafPage *>(page);                  // 左边
-        auto *leaf_sibling_page = reinterpret_cast<LeafPage *>(sibling_page);  // 右边
-        // 删除左孩子中最后一个last_k,last_v
-        KeyType last_k = leaf_page->KeyAt(size - 1);
-        ValueType last_v = leaf_page->ValueAt(size - 1);
-        leaf_page->SetSize(size - 1);
-        // 右孩子中(k,v)右移
-        auto src = leaf_sibling_page->GetPointer(0);
-        auto dst = leaf_sibling_page->GetPointer(1);
-        memmove(static_cast<void *>(dst), static_cast<void *>(src),
-                sibling_size * leaf_sibling_page->GetMappingTypeSize());
-        // 将(last_k, last_v) 设为右孩子第一个节点
-        leaf_sibling_page->SetKeyAt(0, last_k);
-        leaf_sibling_page->SetValueAt(0, last_v);
-        leaf_sibling_page->SetSize(sibling_size + 1);
-        // 将parent中指向右边孩子的k 设置为last_k, 保持有序性
-        parent->SetKeyAt(k_index, last_k);
-        // unpin 左右孩子，以及父节点
-        buffer_pool_manager_->UnpinPage(parent_id, true);
-        buffer_pool_manager_->UnpinPage(sibling_id, true);
-        buffer_pool_manager_->UnpinPage(page_id, true);
-      } else {  // ******************* 非叶子结点重分配**************
-        auto *internal_page = reinterpret_cast<InternalPage *>(page);  // 左边
-        auto *internal_sibling_page = reinterpret_cast<InternalPage *>(sibling_page);
-        // 删除左边孩子的最后一个 (last_k, last_v)
-        KeyType last_k = internal_page->KeyAt(size - 1);
-        page_id_t last_v = internal_page->ValueAt(size - 1);
-        internal_page->SetSize(size - 1);
-        // 将右边第一个key设为父节点中指向右边孩子的k, 将所有k/v右移
-        internal_sibling_page->SetKeyAt(0, k);
-        auto src = internal_sibling_page->GetPointer(0);
-        auto dst = internal_sibling_page->GetPointer(1);
-        memmove(static_cast<void *>(dst), static_cast<void *>(src),
-                sibling_size * internal_sibling_page->GetMappingTypeSize());
-        // 右移之后将第一个value设为左孩子最后一个value
-        internal_sibling_page->SetValueAt(0, last_v);
-        internal_sibling_page->SetSize(sibling_size + 1);
-        // 右孩子第一个k变了，修改parent中指向右孩子的k为左孩子的最后一个key
-        parent->SetKeyAt(k_index, last_k);
-        // unpin 左右两个孩子以及父亲节点
-        buffer_pool_manager_->UnpinPage(sibling_id, true);
-        buffer_pool_manager_->UnpinPage(page_id, true);
-        buffer_pool_manager_->UnpinPage(parent_id, true);
-      }
-    }
+    return;
   }
+  // sibling_size + size > max_size
+  //****************************** 重分配 ******************
+  if (flag) {                  // flag为真，sibling_page 在左边 （sibling_page, page)
+    if (page->IsLeafPage()) {  // ***********叶子节点重分配***************
+      auto *leaf_sibling_page = reinterpret_cast<LeafPage *>(sibling_page);
+      auto *leaf_page = reinterpret_cast<LeafPage *>(page);
+      // 删除左孩子中最后一个（last_k,last_v)
+      KeyType last_k = leaf_sibling_page->KeyAt(sibling_size - 1);
+      ValueType last_v = leaf_sibling_page->ValueAt(sibling_size - 1);
+      leaf_sibling_page->SetSize(sibling_size - 1);  // 没有移动数据只是 修改大小  ????????
+      // 右孩子中(k,v) 右移
+      auto src = leaf_page->GetPointer(0);
+      auto dst = leaf_page->GetPointer(1);
+      memmove(static_cast<void *>(dst), static_cast<void *>(src), size * leaf_page->GetMappingTypeSize());
+      // 将(last_k, last_v) 设为右孩子第一个节点
+      leaf_page->SetKeyAt(0, last_k);
+      leaf_page->SetValueAt(0, last_v);
+      leaf_page->SetSize(size + 1);
+      // 将parent中指向右边孩子的k 设置为last_k, 保持有序性
+      parent->SetKeyAt(k_index, last_k);
+    } else {  // ******************* 非叶子结点重分配**************
+      auto *internal_sibling_page = reinterpret_cast<InternalPage *>(sibling_page);  // 左边
+      auto *internal_page = reinterpret_cast<InternalPage *>(page);
+      // 删除左边孩子的最后一个 (last_k, last_v)
+      KeyType last_k = internal_sibling_page->KeyAt(sibling_size - 1);
+      page_id_t last_v = internal_sibling_page->ValueAt(sibling_size - 1);
+      internal_sibling_page->SetSize(sibling_size - 1);
+      // 将右边第一个key设为父节点中指向右边孩子的k, 将所有k/v右移
+      internal_page->SetKeyAt(0, k);
+      auto src = internal_page->GetPointer(0);
+      auto dst = internal_page->GetPointer(1);
+      memmove(static_cast<void *>(dst), static_cast<void *>(src), size * internal_page->GetMappingTypeSize());
+      // 右移之后将第一个value设为做孩子最后一个value
+      internal_page->SetValueAt(0, last_v);
+      internal_page->SetSize(size + 1);
+      // 右孩子第一个k变了，修改parent中指向右孩子的k为左孩子的最后一个key
+      parent->SetKeyAt(k_index, last_k);
+    }
+    // unpin 左右孩子，已经父节点
+    buffer_pool_manager_->UnpinPage(parent_id, true);
+    buffer_pool_manager_->UnpinPage(sibling_id, true);
+    buffer_pool_manager_->UnpinPage(page_id, true);
+    return;
+  }
+  // flag 为假， page 在左边 sibling_page 在右边 (page, sibling_page)
+  // ***********叶子节点重分配***************
+  if (sibling_page->IsLeafPage()) {
+    auto *leaf_page = reinterpret_cast<LeafPage *>(page);                  // 左边
+    auto *leaf_sibling_page = reinterpret_cast<LeafPage *>(sibling_page);  // 右边
+    // 删除左孩子中最后一个last_k,last_v
+    KeyType last_k = leaf_page->KeyAt(size - 1);
+    ValueType last_v = leaf_page->ValueAt(size - 1);
+    leaf_page->SetSize(size - 1);
+    // 右孩子中(k,v)右移
+    auto src = leaf_sibling_page->GetPointer(0);
+    auto dst = leaf_sibling_page->GetPointer(1);
+    memmove(static_cast<void *>(dst), static_cast<void *>(src), sibling_size * leaf_sibling_page->GetMappingTypeSize());
+    // 将(last_k, last_v) 设为右孩子第一个节点
+    leaf_sibling_page->SetKeyAt(0, last_k);
+    leaf_sibling_page->SetValueAt(0, last_v);
+    leaf_sibling_page->SetSize(sibling_size + 1);
+    // 将parent中指向右边孩子的k 设置为last_k, 保持有序性
+    parent->SetKeyAt(k_index, last_k);
+  } else {  // ******************* 非叶子结点重分配**************
+    auto *internal_page = reinterpret_cast<InternalPage *>(page);  // 左边
+    auto *internal_sibling_page = reinterpret_cast<InternalPage *>(sibling_page);
+    // 删除左边孩子的最后一个 (last_k, last_v)
+    KeyType last_k = internal_page->KeyAt(size - 1);
+    page_id_t last_v = internal_page->ValueAt(size - 1);
+    internal_page->SetSize(size - 1);
+    // 将右边第一个key设为父节点中指向右边孩子的k, 将所有k/v右移
+    internal_sibling_page->SetKeyAt(0, k);
+    auto src = internal_sibling_page->GetPointer(0);
+    auto dst = internal_sibling_page->GetPointer(1);
+    memmove(static_cast<void *>(dst), static_cast<void *>(src),
+            sibling_size * internal_sibling_page->GetMappingTypeSize());
+    // 右移之后将第一个value设为左孩子最后一个value
+    internal_sibling_page->SetValueAt(0, last_v);
+    internal_sibling_page->SetSize(sibling_size + 1);
+    // 右孩子第一个k变了，修改parent中指向右孩子的k为左孩子的最后一个key
+    parent->SetKeyAt(k_index, last_k);
+  }
+  // unpin 左右两个孩子以及父亲节点
+  buffer_pool_manager_->UnpinPage(sibling_id, true);
+  buffer_pool_manager_->UnpinPage(page_id, true);
+  buffer_pool_manager_->UnpinPage(parent_id, true);
 }
+
 /*****************************************************************************
  * INDEX ITERATOR
  *****************************************************************************/
