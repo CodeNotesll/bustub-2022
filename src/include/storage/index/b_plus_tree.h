@@ -42,17 +42,63 @@ class BPlusTree {
   explicit BPlusTree(std::string name, BufferPoolManager *buffer_pool_manager, const KeyComparator &comparator,
                      int leaf_max_size = LEAF_PAGE_SIZE, int internal_max_size = INTERNAL_PAGE_SIZE);
 
-  // Returns true if this B+ tree has no keys and values.
+  /**
+   * @brief check B+ tree empty (have no keys and values)
+   *
+   * @return true if empty
+   */
   auto IsEmpty() const -> bool;
 
-  // Insert a key-value pair into this B+ tree.
+  /**
+   * @brief Insert constant key & value pair into b+ tree,
+   * if current tree is empty, start new tree, update root page id and insert
+   *
+   * @param key
+   * @param value
+   * @param transaction ignored in project 4
+   * @return false if key already exists in b+ tree, true in other cases
+   */
   auto Insert(const KeyType &key, const ValueType &value, Transaction *transaction = nullptr) -> bool;
 
-  // Remove a key and its value from this B+ tree.
+  /**
+   * @brief helper function insert in a leaf page
+   *
+   * @param leafpage the pointer to leaf page
+   * @param key
+   * @param value
+   */
+
+  void InsertInLeaf(LeafPage *leafpage, const KeyType &key, const ValueType &value);
+  /**
+   * @brief leftpage 和 rightpage是一个节点分裂得到的，更新父亲节点
+   *
+   * @param internalpage
+   * @param page_id
+   */
+  void InsertInParent(BPlusTreePage *leftpage, BPlusTreePage *rightpage, const KeyType &key);
+
+  /*
+   * Delete key & value pair associated with input key
+   * If current tree is empty, return immdiately.
+   * If not, User needs to first find the right leaf page as deletion target, then
+   * delete entry from leaf page. Remember to deal with redistribute or merge if
+   * necessary.
+   */
   void Remove(const KeyType &key, Transaction *transaction = nullptr);
+
+  /**
+   * @brief delete an entry in page, page can be either a leaf page or an internal page
+   *
+   * @param page
+   * @param key
+   */
+  void DeleteEntry(BPlusTreePage *page, const KeyType &key);
 
   // return the value associated with a given key
   auto GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction = nullptr) -> bool;
+
+  // get leaf page id that should contain the key
+  auto GetLeafPageId(const KeyType &key) -> page_id_t;
 
   // return the page id of the root node
   auto GetRootPageId() -> page_id_t;
@@ -75,11 +121,34 @@ class BPlusTree {
   void RemoveFromFile(const std::string &file_name, Transaction *transaction = nullptr);
 
  private:
+  /**
+   * @brief Update/Insert root page id in header page(where page_id = 0, header_page is
+   * defined under include/page/header_page.h)
+   * Call this method everytime root page id is changed.
+   * @param insert_record defualt value is false. When set to true,
+   * insert a record <index_name, root_page_id> into header page instead of
+   * updating it.
+   */
   void UpdateRootPageId(int insert_record = 0);
 
-  /* Debug Routines for FREE!! */
+  /**
+   * This function is for debug only, you don't need to modify Debug Routines for FREE!!
+   * @tparam KeyType
+   * @tparam ValueType
+   * @tparam KeyComparator
+   * @param page
+   * @param bpm
+   */
   void ToGraph(BPlusTreePage *page, BufferPoolManager *bpm, std::ofstream &out) const;
 
+  /**
+   * This function is for debug only, you don't need to modify
+   * @tparam KeyType
+   * @tparam ValueType
+   * @tparam KeyComparator
+   * @param page
+   * @param bpm
+   */
   void ToString(BPlusTreePage *page, BufferPoolManager *bpm) const;
 
   // member variable

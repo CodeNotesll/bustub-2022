@@ -40,7 +40,10 @@ namespace bustub {
 
 // https://blog.galowicz.de/2016/02/20/short_file_macro/
 using cstr = const char *;
-
+#define GREEEN "\033[32m"
+#define RED "\033[31m"
+#define YELLOW "\033[33m"
+#define END "\033[0m"
 static constexpr auto PastLastSlash(cstr a, cstr b) -> cstr {
   return *a == '\0' ? b : *b == '/' ? PastLastSlash(a + 1, a + 1) : PastLastSlash(a + 1, b);
 }

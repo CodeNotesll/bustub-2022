@@ -31,7 +31,7 @@ namespace bustub {
  *  --------------------------------------------------------------------------
  * | HEADER | KEY(1)+PAGE_ID(1) | KEY(2)+PAGE_ID(2) | ... | KEY(n)+PAGE_ID(n) |
  *  --------------------------------------------------------------------------
- */  // KEY(1) 怎么设置
+ */
 INDEX_TEMPLATE_ARGUMENTS
 class BPlusTreeInternalPage : public BPlusTreePage {
  public:
@@ -41,9 +41,13 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   auto KeyAt(int index) const -> KeyType;
   void SetKeyAt(int index, const KeyType &key);
   auto ValueAt(int index) const -> ValueType;
+  void SetValueAt(int index, const ValueType &value);
+
+  auto GetPointer(int index) -> MappingType *;
+  auto GetMappingTypeSize() -> int;
 
  private:
   // Flexible array member for page data.
-  MappingType array_[1];
+  MappingType array_[INTERNAL_PAGE_SIZE];
 };
 }  // namespace bustub

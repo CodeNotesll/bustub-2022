@@ -49,10 +49,18 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   auto GetNextPageId() const -> page_id_t;
   void SetNextPageId(page_id_t next_page_id);
   auto KeyAt(int index) const -> KeyType;
+  auto ValueAt(int index) const -> ValueType;
+
+  void SetKeyAt(int index, const KeyType &key);
+  void SetValueAt(int index, const ValueType &value);
+  // return the pointer to array_[index], used by memmove
+  auto GetPointer(int index) -> MappingType *;
+
+  auto GetMappingTypeSize() -> int;
 
  private:
   page_id_t next_page_id_;
   // Flexible array member for page data.
-  MappingType array_[1];
+  MappingType array_[LEAF_PAGE_SIZE];
 };
 }  // namespace bustub

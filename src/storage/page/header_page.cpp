@@ -26,12 +26,12 @@ auto HeaderPage::InsertRecord(const std::string &name, const page_id_t root_id) 
   int record_num = GetRecordCount();
   int offset = 4 + record_num * 36;
   // check for duplicate name
-  if (FindRecord(name) != -1) {
+  if (FindRecord(name) != -1) {  // 已经存在相同的记录
     return false;
   }
   // copy record content
-  memcpy(GetData() + offset, name.c_str(), (name.length() + 1));
-  memcpy((GetData() + offset + 32), &root_id, 4);
+  memcpy(GetData() + offset, name.c_str(), (name.length() + 1));  // 名称
+  memcpy((GetData() + offset + 32), &root_id, 4);                 // root_id
 
   SetRecordCount(record_num + 1);
   return true;
@@ -78,6 +78,8 @@ auto HeaderPage::GetRootId(const std::string &name, page_id_t *root_id) -> bool 
   }
   int offset = (index + 1) * 36;
   *root_id = *reinterpret_cast<page_id_t *>(GetData() + offset);
+  // int offset = index * 36 + 4
+  // *root_id = *reinterpret_cast<page_id_t *>(GetData() + (offset + 32));
 
   return true;
 }
