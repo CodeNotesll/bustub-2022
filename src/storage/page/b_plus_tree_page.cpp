@@ -25,10 +25,7 @@ void BPlusTreePage::SetPageType(IndexPageType page_type) { page_type_ = page_typ
  * Helper methods to get/set size (number of key/value pairs stored in that
  * page)
  */
-auto BPlusTreePage::GetSize() const -> int {
-  // std::cout << "this is " << this << std::endl;
-  return size_;
-}
+auto BPlusTreePage::GetSize() const -> int { return size_; }
 void BPlusTreePage::SetSize(int size) { size_ = size; }
 void BPlusTreePage::IncreaseSize(int amount) { size_ += amount; }
 

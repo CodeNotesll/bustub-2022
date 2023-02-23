@@ -90,9 +90,6 @@ auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
 
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *transaction) -> bool {
-  // std::cout << YELLOW << "Insert: " << RED << key << END << std::endl;
-  //  std::cout << "Insert: " << key << std::endl;
-  //  page_id_t leaf_page_id;
   LeafPage *leafpage;
   page_id_t leaf_page_id;
   if (IsEmpty()) {
@@ -102,7 +99,6 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
     leafpage->SetNextPageId(INVALID_PAGE_ID);
     // root_page_id_ = page_id;
     root_page_id_ = leaf_page_id;
-    // std::cout << "first page id " << root_page_id_ << std::endl;
     UpdateRootPageId(1);
   } else {  // find the leaf Node that should contain "key"
     leafpage = GetLeafPageId(key);
@@ -130,7 +126,6 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
   auto *rightleafpage = reinterpret_cast<LeafPage *>(buffer_pool_manager_->NewPage(&rightleafpageid)->GetData());
   rightleafpage->Init(rightleafpageid, INVALID_PAGE_ID, leaf_max_size_);
   // 临时节点
-  // std::cout << "rightleafpage id is " << rightleafpageid << std::endl;
   auto *temp = new LeafPage;
   temp->Init(INVALID_PAGE_ID);
   auto src = leafpage->GetPointer(0);
@@ -168,19 +163,14 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
 
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::InsertInParent(BPlusTreePage *leftpage, BPlusTreePage *rightpage, const KeyType &key) {
-  // std::cout << GREEEN << "InsertInparent: " << RED << key << END << std::endl;
-  //  std::cout << "InsertInparent: " << key << std::endl;
-  //  std::cout << "leftpage id " << leftpage->GetPageId() << " rightpage id " << rightpage->GetPageId() << std::endl;
   if (leftpage->IsRootPage()) {  // 左节点是根节点, 之前分裂的节点是根节点
     // create a new page as root
-    // std::cout << "InsertInParent: root page splited, create a new root" << std::endl;
     page_id_t root_id;
     auto *rootpage = reinterpret_cast<InternalPage *>(buffer_pool_manager_->NewPage(&root_id)->GetData());
     rootpage->Init(root_id, INVALID_PAGE_ID, internal_max_size_);
     leftpage->SetParentPageId(root_id);  // 左右节点父节点信息改变
     rightpage->SetParentPageId(root_id);
     root_page_id_ = root_id;
-    // std::cout << "new root id is " << root_page_id_ << std::endl;
     UpdateRootPageId(0);  // 更新根节点编号
     rootpage->SetValueAt(0, leftpage->GetPageId());
     rootpage->SetKeyAt(1, key);
@@ -193,11 +183,8 @@ void BPLUSTREE_TYPE::InsertInParent(BPlusTreePage *leftpage, BPlusTreePage *righ
   }
   // 内部节点的array_类型是KeyType, page_id_t, 和叶子节点不同
   page_id_t parent_id = leftpage->GetParentPageId();
-  // std::cout << "parent_id is " << parent_id << std::endl;
   auto *parentpage = reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(parent_id)->GetData());
-  // std::cout << "Line 204 " << parentpage << std::endl;
   int size = parentpage->GetSize();
-  // std::cout << "parent_size is " << size << std::endl;
   int maxsize = parentpage->GetMaxSize();
 
   if (size < maxsize) {  // 父节点中由足够空间
@@ -214,9 +201,7 @@ void BPLUSTREE_TYPE::InsertInParent(BPlusTreePage *leftpage, BPlusTreePage *righ
     memmove(static_cast<void *>(dst), static_cast<void *>(src), (size - index) * parentpage->GetMappingTypeSize());
     parentpage->SetKeyAt(index, key);
     parentpage->SetValueAt(index, rightpage->GetPageId());
-    // std::cout << "parentpage->SetSize()" << std::endl;
     parentpage->SetSize(size + 1);
-    // std::cout << "parentpage->GetSize() " << parentpage->GetSize() << std::endl;
     rightpage->SetParentPageId(parent_id);  ///
 
     buffer_pool_manager_->UnpinPage(parent_id, true);               // unpin parent page

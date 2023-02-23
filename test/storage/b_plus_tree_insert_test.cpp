@@ -391,14 +391,12 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC1) {
   // randomized the insertion order
   auto rng = std::default_random_engine{};
   std::shuffle(keys.begin(), keys.end(), rng);
-  std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
   for (auto key : keys) {
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
     tree.Insert(index_key, rid, transaction);
   }
-  std::cout << "----------------------------------" << std::endl;
   std::vector<RID> rids;
   for (auto key : keys) {
     rids.clear();
@@ -409,13 +407,11 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC1) {
     int64_t value = key & 0xFFFFFFFF;
     EXPECT_EQ(rids[0].GetSlotNum(), value);
   }
-  std::cout << "++++++++++++++++++++++++++++++++++" << std::endl;
 
   for (auto key : keys) {
     index_key.SetFromInteger(key);
     tree.Remove(index_key, transaction);
   }
-  std::cout << "##################################" << std::endl;
 
   for (auto key : keys) {
     // std::cout << "key is " << key << std::endl;
@@ -424,7 +420,6 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC1) {
     index_key.SetFromInteger(key);
     tree.Insert(index_key, rid, transaction);
   }
-  std::cout << "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&" << std::endl;
   for (auto key : keys) {
     rids.clear();
     index_key.SetFromInteger(key);
