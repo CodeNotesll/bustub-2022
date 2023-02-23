@@ -86,7 +86,7 @@ TEST(BPlusTreeTests, InsertTest2) {
 
   std::vector<int64_t> keys = {1, 2, 3, 4, 5};
   for (auto key : keys) {
-    int64_t value = key & 0xFFFFFFFF;
+    int64_t value = key & 0xFFFFFFFF;  // value key
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
     tree.Insert(index_key, rid, transaction);
@@ -232,12 +232,14 @@ TEST(BPlusTreeConcurrentTestC1, SplitTest) {
   }
 
   index_key.SetFromInteger(1);
-  page_id_t id = tree.GetLeafPageId(index_key);
-  //auto leaf_node = reinterpret_cast<BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *>(
-      //tree.FindLeafPage(index_key, OpType::READ, nullptr));
-  auto leaf_node = reinterpret_cast<BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *>(
-bpm->FetchPage(id)->GetData()); ASSERT_NE(nullptr, leaf_node); EXPECT_EQ(1, leaf_node->GetSize()); EXPECT_EQ(2,
-leaf_node->GetMaxSize());
+  auto leaf_node = tree.GetLeafPageId(index_key);
+  // auto leaf_node = reinterpret_cast<BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *>(
+  //  tree.GetRootPageId(index_key, OpType::READ, nullptr));
+  // auto leaf_node =
+  //     reinterpret_cast<BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *>(bpm->FetchPage(id)->GetData());
+  ASSERT_NE(nullptr, leaf_node);
+  EXPECT_EQ(1, leaf_node->GetSize());
+  EXPECT_EQ(2, leaf_node->GetMaxSize());
 
   // Check the next 4 pages
   for (int i = 0; i < 4; i++) {
@@ -255,7 +257,6 @@ leaf_node->GetMaxSize());
   remove("test.db");
   remove("test.log");
 }
-
 
 TEST(BPlusTreeConcurrentTestC1, InsertTest4) {
   // create KeyComparator and index schema
@@ -378,6 +379,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC1) {
   // create and fetch header_page
   page_id_t page_id;
   auto header_page = bpm->NewPage(&page_id);
+  EXPECT_EQ(page_id, 0);
   (void)header_page;
 
   int64_t scale = 10000;
@@ -388,46 +390,50 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC1) {
 
   // randomized the insertion order
   auto rng = std::default_random_engine{};
-  //std::shuffle(keys.begin(), keys.end(), rng);
-  std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
+  std::shuffle(keys.begin(), keys.end(), rng);
+  std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
   for (auto key : keys) {
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
     tree.Insert(index_key, rid, transaction);
   }
-  std::cout << "-----------------------------------" << std::endl;
-  //std::vector<RID> rids;
-  //for (auto key : keys) {
-  //  rids.clear();
-  //  index_key.SetFromInteger(key);
-  //  tree.GetValue(index_key, &rids);
-  //  EXPECT_EQ(rids.size(), 1);
+  std::cout << "----------------------------------" << std::endl;
+  std::vector<RID> rids;
+  for (auto key : keys) {
+    rids.clear();
+    index_key.SetFromInteger(key);
+    tree.GetValue(index_key, &rids);
+    EXPECT_EQ(rids.size(), 1);
 
-  //  int64_t value = key & 0xFFFFFFFF;
-  //  EXPECT_EQ(rids[0].GetSlotNum(), value);
-  //}
+    int64_t value = key & 0xFFFFFFFF;
+    EXPECT_EQ(rids[0].GetSlotNum(), value);
+  }
+  std::cout << "++++++++++++++++++++++++++++++++++" << std::endl;
 
-  //for (auto key : keys) {
-  //  index_key.SetFromInteger(key);
-  //  tree.Remove(index_key, transaction);
-  //}
+  for (auto key : keys) {
+    index_key.SetFromInteger(key);
+    tree.Remove(index_key, transaction);
+  }
+  std::cout << "##################################" << std::endl;
 
-  //for (auto key : keys) {
-  //  int64_t value = key & 0xFFFFFFFF;
-  //  rid.Set(static_cast<int32_t>(key >> 32), value);
-  //  index_key.SetFromInteger(key);
-  //  tree.Insert(index_key, rid, transaction);
-  //}
-  //for (auto key : keys) {
-  //  rids.clear();
-  //  index_key.SetFromInteger(key);
-  //  tree.GetValue(index_key, &rids);
-  //  EXPECT_EQ(rids.size(), 1);
+  for (auto key : keys) {
+    // std::cout << "key is " << key << std::endl;
+    int64_t value = key & 0xFFFFFFFF;
+    rid.Set(static_cast<int32_t>(key >> 32), value);
+    index_key.SetFromInteger(key);
+    tree.Insert(index_key, rid, transaction);
+  }
+  std::cout << "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&" << std::endl;
+  for (auto key : keys) {
+    rids.clear();
+    index_key.SetFromInteger(key);
+    tree.GetValue(index_key, &rids);
+    EXPECT_EQ(rids.size(), 1);
 
-  //  int64_t value = key & 0xFFFFFFFF;
-  //  EXPECT_EQ(rids[0].GetSlotNum(), value);
-  //}
+    int64_t value = key & 0xFFFFFFFF;
+    EXPECT_EQ(rids[0].GetSlotNum(), value);
+  }
 
   bpm->UnpinPage(HEADER_PAGE_ID, true);
   delete transaction;
