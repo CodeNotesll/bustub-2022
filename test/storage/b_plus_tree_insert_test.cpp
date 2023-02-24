@@ -12,8 +12,8 @@
 
 #include <algorithm>
 #include <cstdio>
-
 #include <random>
+#include <unordered_map>
 #include "buffer/buffer_pool_manager_instance.h"
 #include "gtest/gtest.h"
 #include "storage/index/b_plus_tree.h"
@@ -128,7 +128,7 @@ TEST(BPlusTreeTests, InsertTest2) {
   remove("test.log");
 }
 
-/*TEST(BPlusTreeTests, InsertTest3) {
+TEST(BPlusTreeTests, InsertTest3) {
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema.get());
@@ -151,7 +151,7 @@ TEST(BPlusTreeTests, InsertTest2) {
   std::vector<int64_t> keys = {5, 4, 3, 2, 1};
   for (auto key : keys) {
     int64_t value = key & 0xFFFFFFFF;
-    rid.Set(static_cast<int32_t>(key >> 32), value);
+    rid.Set(static_cast<int32_t>(key >> 32), value);  // page_id, slot num
     index_key.SetFromInteger(key);
     tree.Insert(index_key, rid, transaction);
   }
@@ -195,7 +195,7 @@ TEST(BPlusTreeTests, InsertTest2) {
   delete bpm;
   remove("test.db");
   remove("test.log");
-}*/
+}
 
 TEST(BPlusTreeConcurrentTestC1, SplitTest) {
   // create KeyComparator and index schema
@@ -387,7 +387,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC1) {
   for (int64_t key = 1; key < scale; key++) {
     keys.push_back(key);
   }
-
+  std::unordered_map<int64_t, RID> mp;
   // randomized the insertion order
   auto rng = std::default_random_engine{};
   std::shuffle(keys.begin(), keys.end(), rng);
@@ -396,6 +396,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC1) {
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
     tree.Insert(index_key, rid, transaction);
+    mp[index_key.ToString()] = rid;
   }
   std::vector<RID> rids;
   for (auto key : keys) {
@@ -428,6 +429,13 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC1) {
 
     int64_t value = key & 0xFFFFFFFF;
     EXPECT_EQ(rids[0].GetSlotNum(), value);
+  }
+
+  for (auto it = tree.Begin(); it != tree.End(); ++it) {
+    index_key = (*it).first;
+    rid = (*it).second;
+    EXPECT_EQ(rid.GetPageId(), mp[index_key.ToString()].GetPageId());
+    EXPECT_EQ(rid.GetSlotNum(), mp[index_key.ToString()].GetSlotNum());
   }
 
   bpm->UnpinPage(HEADER_PAGE_ID, true);

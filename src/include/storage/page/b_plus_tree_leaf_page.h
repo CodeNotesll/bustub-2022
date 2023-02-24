@@ -58,6 +58,8 @@ class BPlusTreeLeafPage : public BPlusTreePage {
 
   auto GetMappingTypeSize() -> int;
 
+  auto At(int index) -> const MappingType &;
+
  private:
   page_id_t next_page_id_;
   // Flexible array member for page data.

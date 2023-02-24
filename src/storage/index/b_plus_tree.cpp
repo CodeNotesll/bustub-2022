@@ -510,7 +510,25 @@ void BPLUSTREE_TYPE::DeleteEntry(BPlusTreePage *page, const KeyType &key) {
  * @return : index iterator
  */
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE { return INDEXITERATOR_TYPE(); }
+auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE {
+  if (IsEmpty()) {
+    return INDEXITERATOR_TYPE();  // 为空 返回空迭代器
+  }
+  page_id_t pre_id = -1;              // 上一个节点id
+  page_id_t next_id = root_page_id_;  // 下一个取出的节点id
+  auto *page = reinterpret_cast<BPlusTreePage *>(buffer_pool_manager_->FetchPage(next_id)->GetData());
+  while (!page->IsLeafPage()) {  // 取出的节点不是叶子节点，
+    auto *internalpage = reinterpret_cast<InternalPage *>(page);
+    pre_id = next_id;                                // 记住当前节点id
+    next_id = internalpage->ValueAt(0);              // 取出最左边孩子id
+    buffer_pool_manager_->UnpinPage(pre_id, false);  // unpin当前节点 and 取出下一节点
+    page = reinterpret_cast<BPlusTreePage *>(buffer_pool_manager_->FetchPage(next_id)->GetData());
+  }
+  int size = page->GetSize();
+  page_id_t next_page_id = reinterpret_cast<LeafPage *>(page)->GetNextPageId();
+  buffer_pool_manager_->UnpinPage(next_id, false);
+  return INDEXITERATOR_TYPE(buffer_pool_manager_, next_id, 0, size, next_page_id);
+}
 
 /*
  * Input parameter is low key, find the leaf page that contains the input key
@@ -518,7 +536,20 @@ auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE { return INDEXITERATOR_TYPE()
  * @return : index iterator
  */
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::Begin(const KeyType &key) -> INDEXITERATOR_TYPE { return INDEXITERATOR_TYPE(); }
+auto BPLUSTREE_TYPE::Begin(const KeyType &key) -> INDEXITERATOR_TYPE {
+  LeafPage *leafpage = GetLeafPageId(key);  // 找到key所在的叶子节点
+  int size = leafpage->GetSize();
+  page_id_t page_id = leafpage->GetPageId();
+  page_id_t next_id = leafpage->GetNextPageId();
+  for (int i = 0; i < size; ++i) {
+    if (comparator_(leafpage->KeyAt(i), key) == 0) {  // 存在该key
+      buffer_pool_manager_->UnpinPage(page_id, false);
+      return INDEXITERATOR_TYPE(buffer_pool_manager_, page_id, i, size, next_id);
+    }
+  }
+  buffer_pool_manager_->UnpinPage(page_id, false);
+  return INDEXITERATOR_TYPE();
+}
 
 /*
  * Input parameter is void, construct an index iterator representing the end

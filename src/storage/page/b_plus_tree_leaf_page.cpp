@@ -66,6 +66,9 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::GetPointer(int index) -> MappingType * { return
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::GetMappingTypeSize() -> int { return sizeof(MappingType); }
 
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::At(int index) -> const MappingType & { return array_[index]; }
+
 template class BPlusTreeLeafPage<GenericKey<4>, RID, GenericComparator<4>>;
 template class BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>>;
 template class BPlusTreeLeafPage<GenericKey<16>, RID, GenericComparator<16>>;
