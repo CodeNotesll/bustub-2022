@@ -26,7 +26,7 @@ auto BPLUSTREE_TYPE::IsEmpty() const -> bool { return root_page_id_ == INVALID_P
  * SEARCH
  *****************************************************************************/
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::GetLeafPageId(const KeyType &key) -> LeafPage * {
+auto BPLUSTREE_TYPE::GetLeafPage(const KeyType &key) -> LeafPage * {
   page_id_t parent_page_id = -1;
   page_id_t cur_page_id = root_page_id_;
   Page *page = buffer_pool_manager_->FetchPage(cur_page_id);
@@ -70,7 +70,7 @@ auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
     return false;
   }
   // 获得叶子节点编号，
-  LeafPage *leafpage = GetLeafPageId(key);
+  LeafPage *leafpage = GetLeafPage(key);
   page_id_t leaf_page_id = leafpage->GetPageId();
   int size = leafpage->GetSize();  // 获得array_数组大小
   for (int i = 0; i < size; ++i) {
@@ -101,7 +101,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
     root_page_id_ = leaf_page_id;
     UpdateRootPageId(1);
   } else {  // find the leaf Node that should contain "key"
-    leafpage = GetLeafPageId(key);
+    leafpage = GetLeafPage(key);
     leaf_page_id = leafpage->GetPageId();
   }
 
@@ -114,6 +114,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
     }
   }
 
+  // 对叶子节点先插入，再检查是否==max_size
   if (size < max_size - 1) {
     InsertInLeaf(leafpage, key, value);
     buffer_pool_manager_->UnpinPage(leaf_page_id, true);  // 返回前unpin
@@ -140,7 +141,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
   rightleafpage->SetNextPageId(leafpage->GetNextPageId());
   leafpage->SetNextPageId(rightleafpageid);
   // 分割临时节点，左右两个叶子节点的(k,v) 数对
-  int left_size = (leaf_max_size_ + 1) / 2;
+  int left_size = (leaf_max_size_ + 1) / 2;  // 为什么使用leaf_max_size_ ?????????????????????
   int right_size = leaf_max_size_ - left_size;
   // 复制的起点
   auto src1 = temp->GetPointer(0);
@@ -187,15 +188,16 @@ void BPLUSTREE_TYPE::InsertInParent(BPlusTreePage *leftpage, BPlusTreePage *righ
   int size = parentpage->GetSize();
   int maxsize = parentpage->GetMaxSize();
 
-  if (size < maxsize) {  // 父节点中由足够空间
-    // 找到父节点中指向leftpage的(key, page_id)对,
-    int index = 0;
-    for (int i = size - 1; i >= 0; --i) {  //
-      if (parentpage->ValueAt(i) == leftpage->GetPageId()) {
-        index = i + 1;  // 在父节点中找到指向leftpage的位置
-        break;          // 在之后插入指向rightpage的位置
-      }
+  // 找到父节点中指向leftpage的(key, page_id)对,
+  int index = 0;
+  for (int i = size - 1; i >= 0; --i) {  //
+    if (parentpage->ValueAt(i) == leftpage->GetPageId()) {
+      index = i + 1;  // 在父节点中找到指向leftpage的位置
+      break;          // 在之后插入指向rightpage的位置
     }
+  }
+
+  if (size < maxsize) {  // 父节点中由足够空间
     auto src = parentpage->GetPointer(index);
     auto dst = parentpage->GetPointer(index + 1);  // 右移
     memmove(static_cast<void *>(dst), static_cast<void *>(src), (size - index) * parentpage->GetMappingTypeSize());
@@ -210,28 +212,21 @@ void BPLUSTREE_TYPE::InsertInParent(BPlusTreePage *leftpage, BPlusTreePage *righ
     return;
   }
 
-  // size == maxsize
+  //  size == maxsize
+  //  先复制到新的区域
   using internalpair = std::pair<KeyType, page_id_t>;
   std::pair<KeyType, page_id_t> temp[size + 1];
   std::memcpy(static_cast<void *>(temp), static_cast<void *>(parentpage->GetPointer(0)),
               size * parentpage->GetMappingTypeSize());
-  int index = 0;
-  for (int i = size - 1; i >= 0; --i) {
-    if (temp[i].second == leftpage->GetPageId()) {
-      index = i + 1;
-      break;
-    }
-  }
-
   std::memmove(static_cast<void *>(&temp[index + 1]), static_cast<void *>(&temp[index]),
                (size - index) * sizeof(internalpair));
 
   temp[index].first = key;
   temp[index].second = rightpage->GetPageId();
 
-  page_id_t rightparent_id;
-  auto *rightparent = reinterpret_cast<InternalPage *>(buffer_pool_manager_->NewPage(&rightparent_id)->GetData());
-  rightparent->Init(rightparent_id, INVALID_PAGE_ID, internal_max_size_);
+  page_id_t right_parent_id;
+  auto *rightparent = reinterpret_cast<InternalPage *>(buffer_pool_manager_->NewPage(&right_parent_id)->GetData());
+  rightparent->Init(right_parent_id, INVALID_PAGE_ID, internal_max_size_);
   // parent节点要分裂, 申请新的节点
   auto left_dst = parentpage->GetPointer(0);
   auto right_dst = rightparent->GetPointer(0);
@@ -239,13 +234,17 @@ void BPLUSTREE_TYPE::InsertInParent(BPlusTreePage *leftpage, BPlusTreePage *righ
   int right_size = size + 1 - left_size;
   std::memcpy(static_cast<void *>(left_dst), static_cast<void *>(temp), left_size * sizeof(internalpair));
   std::memcpy(static_cast<void *>(right_dst), static_cast<void *>(&temp[left_size]), right_size * sizeof(internalpair));
-  if (index >= left_size) {                      // 指向rightpage的节点放在了rightparent中
-    rightpage->SetParentPageId(rightparent_id);  // 一定成立吗
-  } else {
-    rightpage->SetParentPageId(parent_id);
-  }
+
+  rightpage->SetParentPageId(parent_id);  // 先将rightpage父节点设为parent_id
+
   parentpage->SetSize(left_size);
-  rightparent->SetSize(right_size);                               // 分裂之后，设置左右两个父节点的size
+  rightparent->SetSize(right_size);       // 分裂之后，设置左右两个父节点的size
+  for (int i = 0; i < right_size; ++i) {  // 改变由rightparent指向的page的父节点
+    page_id_t child_id = rightparent->ValueAt(i);
+    auto *child = reinterpret_cast<BPlusTreePage *>(buffer_pool_manager_->FetchPage(child_id)->GetData());
+    child->SetParentPageId(right_parent_id);
+    buffer_pool_manager_->UnpinPage(child_id, true);
+  }
   buffer_pool_manager_->UnpinPage(leftpage->GetPageId(), true);   // unpin the child page for the change of parent id
   buffer_pool_manager_->UnpinPage(rightpage->GetPageId(), true);  // unpin the child page for the change of parent id
 
@@ -257,7 +256,7 @@ INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::InsertInLeaf(LeafPage *leafpage, const KeyType &key, const ValueType &value) {
   int size = leafpage->GetSize();
   int index = 0;
-  // 把key插入有序位置， 找到最大的 k <= key
+  // 把key插入有序位置， 找到最大的 k <= key   // 二分查找？？？？？？？？？
   for (int i = size - 1; i >= 0; --i) {  // 倒序查找第一个
     KeyType k = leafpage->KeyAt(i);
     if (comparator_(k, key) <= 0) {  // k <= key
@@ -283,7 +282,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
   if (IsEmpty()) {
     return;
   }
-  auto *page = reinterpret_cast<BPlusTreePage *>(GetLeafPageId(key));
+  auto *page = reinterpret_cast<BPlusTreePage *>(GetLeafPage(key));
   DeleteEntry(page, key);
 }
 
@@ -537,8 +536,8 @@ auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE {
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Begin(const KeyType &key) -> INDEXITERATOR_TYPE {
-  LeafPage *leafpage = GetLeafPageId(key);  // 找到key所在的叶子节点
-  int size = leafpage->GetSize();
+  LeafPage *leafpage = GetLeafPage(key);  // 找到key所在的叶子节点
+  int size = leafpage->GetSize();         // 获得叶子节点信息
   page_id_t page_id = leafpage->GetPageId();
   page_id_t next_id = leafpage->GetNextPageId();
   for (int i = 0; i < size; ++i) {
@@ -657,7 +656,9 @@ void BPLUSTREE_TYPE::ToGraph(BPlusTreePage *page, BufferPoolManager *bpm, std::o
     // Print data of the node
     out << "label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\">\n";
     // Print data
-    out << "<TR><TD COLSPAN=\"" << leaf->GetSize() << "\">P=" << leaf->GetPageId() << "</TD></TR>\n";
+    //
+    out << "<TR><TD COLSPAN=\"" << leaf->GetSize() << "\">"
+        << "P=" << leaf->GetPageId() << ",Parent=" << leaf->GetParentPageId() << "</TD></TR>\n";
     out << "<TR><TD COLSPAN=\"" << leaf->GetSize() << "\">"
         << "max_size=" << leaf->GetMaxSize() << ",min_size=" << leaf->GetMinSize() << ",size=" << leaf->GetSize()
         << "</TD></TR>\n";
@@ -688,7 +689,8 @@ void BPLUSTREE_TYPE::ToGraph(BPlusTreePage *page, BufferPoolManager *bpm, std::o
     // Print data of the node
     out << "label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\">\n";
     // Print data
-    out << "<TR><TD COLSPAN=\"" << inner->GetSize() << "\">P=" << inner->GetPageId() << "</TD></TR>\n";
+    out << "<TR><TD COLSPAN=\"" << inner->GetSize() << "\">"
+        << "P=" << inner->GetPageId() << ",parent=" << inner->GetParentPageId() << "</TD></TR>\n";
     out << "<TR><TD COLSPAN=\"" << inner->GetSize() << "\">"
         << "max_size=" << inner->GetMaxSize() << ",min_size=" << inner->GetMinSize() << ",size=" << inner->GetSize()
         << "</TD></TR>\n";

@@ -232,7 +232,7 @@ TEST(BPlusTreeConcurrentTestC1, SplitTest) {
   }
 
   index_key.SetFromInteger(1);
-  auto leaf_node = tree.GetLeafPageId(index_key);
+  auto leaf_node = tree.GetLeafPage(index_key);
   // auto leaf_node = reinterpret_cast<BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *>(
   //  tree.GetRootPageId(index_key, OpType::READ, nullptr));
   // auto leaf_node =
