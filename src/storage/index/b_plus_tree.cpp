@@ -15,7 +15,9 @@ BPLUSTREE_TYPE::BPlusTree(std::string name, BufferPoolManager *buffer_pool_manag
       buffer_pool_manager_(buffer_pool_manager),
       comparator_(comparator),
       leaf_max_size_(leaf_max_size),
-      internal_max_size_(internal_max_size) {}
+      internal_max_size_(internal_max_size) {
+  std::cout << leaf_max_size_ << " " << internal_max_size_ << std::endl;
+}
 
 /*
  * Helper function to decide whether current b+tree is empty
@@ -93,11 +95,10 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
   LeafPage *leafpage;
   page_id_t leaf_page_id;
   if (IsEmpty()) {
-    // page_id_t page_id;
+    // 申请一根节点，设置信息
     leafpage = reinterpret_cast<LeafPage *>(buffer_pool_manager_->NewPage(&leaf_page_id)->GetData());
     leafpage->Init(leaf_page_id, INVALID_PAGE_ID, leaf_max_size_);
     leafpage->SetNextPageId(INVALID_PAGE_ID);
-    // root_page_id_ = page_id;
     root_page_id_ = leaf_page_id;
     UpdateRootPageId(1);
   } else {  // find the leaf Node that should contain "key"
@@ -110,6 +111,8 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
   for (int i = 0; i < size; ++i) {
     if (comparator_(leafpage->KeyAt(i), key) == 0) {         // 已经存在
       buffer_pool_manager_->UnpinPage(leaf_page_id, false);  // 返回前unpin
+      // std:: cout << RED << "Insert return false, leaf_page_id is " << leaf_page_id << END << std::endl;
+      // std:: cout << GREEEN << "key is " << key << END << std::endl;
       return false;
     }
   }
@@ -235,18 +238,26 @@ void BPLUSTREE_TYPE::InsertInParent(BPlusTreePage *leftpage, BPlusTreePage *righ
   std::memcpy(static_cast<void *>(left_dst), static_cast<void *>(temp), left_size * sizeof(internalpair));
   std::memcpy(static_cast<void *>(right_dst), static_cast<void *>(&temp[left_size]), right_size * sizeof(internalpair));
 
-  rightpage->SetParentPageId(parent_id);  // 先将rightpage父节点设为parent_id
-
-  parentpage->SetSize(left_size);
-  rightparent->SetSize(right_size);       // 分裂之后，设置左右两个父节点的size
+  if (index >= left_size) {  // 指向rightpage 的 k移到rightparent
+    rightpage->SetParentPageId(right_parent_id);
+  } else {
+    rightpage->SetParentPageId(parent_id);
+  }
+  rightparent->SetSize(right_size);                               // 分裂之后，设置左右两个父节点的size
+  buffer_pool_manager_->UnpinPage(leftpage->GetPageId(), true);   // unpin the child page for the change of parent id
+  buffer_pool_manager_->UnpinPage(rightpage->GetPageId(), true);  // unpin the child page for the change of parent id
+  // 提前把之后不需要的 leftpage, rightpage unpin
+  // 考虑buffer size 为5，header page在buffer, parent page, right parent, left ,right page都在buffer中
+  // 之后fetch返回错误，所以尽可能提前unpin
   for (int i = 0; i < right_size; ++i) {  // 改变由rightparent指向的page的父节点
+    if (i + left_size == index) {         // 此时这里指向rightpage, rightpage已经设置好parentId
+      continue;
+    }
     page_id_t child_id = rightparent->ValueAt(i);
     auto *child = reinterpret_cast<BPlusTreePage *>(buffer_pool_manager_->FetchPage(child_id)->GetData());
     child->SetParentPageId(right_parent_id);
     buffer_pool_manager_->UnpinPage(child_id, true);
   }
-  buffer_pool_manager_->UnpinPage(leftpage->GetPageId(), true);   // unpin the child page for the change of parent id
-  buffer_pool_manager_->UnpinPage(rightpage->GetPageId(), true);  // unpin the child page for the change of parent id
 
   KeyType k = temp[left_size].first;
   InsertInParent(parentpage, rightparent, k);
@@ -282,6 +293,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
   if (IsEmpty()) {
     return;
   }
+  // std::cout << "before call GetLeafpage " << std::endl;
   auto *page = reinterpret_cast<BPlusTreePage *>(GetLeafPage(key));
   DeleteEntry(page, key);
 }
@@ -289,8 +301,11 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::DeleteEntry(BPlusTreePage *page, const KeyType &key) {
   int size = page->GetSize();
+  // std::cout << "size is " << size << std::endl;
   if (page->IsLeafPage()) {
     auto *leafpage = reinterpret_cast<LeafPage *>(page);
+    // std::cout << GREEEN << "leafpage is " << leafpage << END << std::endl;
+    // std::cout << RED << "size is " << size << END <<  std::endl;
     for (int i = 0; i < size; ++i) {
       if (comparator_(leafpage->KeyAt(i), key) == 0) {  // i 就是要被删除的位置
         memmove(static_cast<void *>(leafpage->GetPointer(i)), static_cast<void *>(leafpage->GetPointer(i + 1)),
