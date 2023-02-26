@@ -247,15 +247,15 @@ TEST(BPlusTreeConcurrentTestC2Seq, DeleteTest1) {
  * Description: Similar to DeleteTest2, except that, during the Remove step,
  * a different subset of keys are removed.
  */
-/*TEST(BPlusTreeConcurrentTestC2Seq, DeleteTest2) {   // fail
+TEST(BPlusTreeConcurrentTestC2Seq, DeleteTest2) {  // pass
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema.get());
 
   DiskManager *disk_manager = new DiskManager("test.db");
   BufferPoolManager *bpm = new BufferPoolManagerInstance(50, disk_manager);
-  //BufferPoolManager *bpm = new BufferPoolManagerInstance(5, disk_manager);
-  // create b+ tree
+  // BufferPoolManager *bpm = new BufferPoolManagerInstance(5, disk_manager);
+  //  create b+ tree
   BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator);
   GenericKey<8> index_key;
   RID rid;
@@ -305,7 +305,7 @@ TEST(BPlusTreeConcurrentTestC2Seq, DeleteTest1) {
 
   std::vector<int64_t> remove_keys = {1, 5, 3, 4};
   for (auto key : keys) {
-    std::cout << "key is " << key << std::endl;
+    // std::cout << "key is " << key << std::endl;
     index_key.SetFromInteger(key);
     tree.Remove(index_key, transaction);
   }
@@ -331,7 +331,7 @@ TEST(BPlusTreeConcurrentTestC2Seq, DeleteTest1) {
   delete bpm;
   remove("test.db");
   remove("test.log");
-}*/
+}
 
 /*
  * Score: 10
@@ -422,7 +422,7 @@ TEST(BPlusTreeConcurrentTestC2Seq, ScaleTest) {  // failllll
   remove("test.log");
 }
 
-/*TEST(BPlusTreeConcurrentTestC2Seq, ScaleTest2) { // pass
+TEST(BPlusTreeConcurrentTestC2Seq, ScaleTest2) {  // pass
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema.get());
@@ -505,7 +505,7 @@ TEST(BPlusTreeConcurrentTestC2Seq, ScaleTest) {  // failllll
   delete bpm;
   remove("test.db");
   remove("test.log");
-}*/
+}
 
 /*
  * Score: 10

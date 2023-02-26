@@ -21,7 +21,7 @@
 
 namespace bustub {
 
-/*TEST(BPlusTreeTests, InsertTest1) {
+TEST(BPlusTreeTests, InsertTest1) {
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema.get());
@@ -63,9 +63,9 @@ namespace bustub {
   delete bpm;
   remove("test.db");
   remove("test.log");
-}*/
+}
 
-/*TEST(BPlusTreeTests, InsertTest2) {
+TEST(BPlusTreeTests, InsertTest2) {
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema.get());
@@ -126,9 +126,9 @@ namespace bustub {
   delete bpm;
   remove("test.db");
   remove("test.log");
-}*/
+}
 
-/*TEST(BPlusTreeTests, InsertTest3) {
+TEST(BPlusTreeTests, InsertTest3) {
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema.get());
@@ -195,7 +195,7 @@ namespace bustub {
   delete bpm;
   remove("test.db");
   remove("test.log");
-}*/
+}
 
 TEST(BPlusTreeConcurrentTestC1, SplitTest) {
   // create KeyComparator and index schema
@@ -258,7 +258,7 @@ TEST(BPlusTreeConcurrentTestC1, SplitTest) {
   remove("test.log");
 }
 
-/*TEST(BPlusTreeConcurrentTestC1, InsertTest4) {
+TEST(BPlusTreeConcurrentTestC1, InsertTest4) {
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema.get());
@@ -302,7 +302,7 @@ TEST(BPlusTreeConcurrentTestC1, SplitTest) {
   delete bpm;
   remove("test.db");
   remove("test.log");
-}*/
+}
 
 //
 // Score: 30
@@ -406,38 +406,38 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC1) {
   std::cout << "First insert success " << std::endl;
   for (auto key : keys) {
     index_key.SetFromInteger(key);
-    std::cout << "key removed " << key << std::endl;
+    // std::cout << "key removed " << key << std::endl;
     tree.Remove(index_key, transaction);
   }
-
+  EXPECT_EQ(tree.GetRootPageId(), INVALID_PAGE_ID);
   for (auto key : keys) {
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
-    bool success = tree.Insert(index_key, rid, transaction);
-    if (success) {
-      std::cout << "key " << key << " insert successful\n";
-    } else {
-      std::cout << "key " << key << " insert fail\n";
-    }
+    tree.Insert(index_key, rid, transaction);
+    // if (success) {
+    //   std::cout << "key " << key << " insert successful\n";
+    // } else {
+    //   std::cout << "key " << key << " insert fail\n";
+    // }
   }
   for (auto key : keys) {
     rids.clear();
     index_key.SetFromInteger(key);
     tree.GetValue(index_key, &rids);
-    std::cout << "Get key: " << key << std::endl;
+    // std::cout << "Get key: " << key << std::endl;
     EXPECT_EQ(rids.size(), 1);
 
     int64_t value = key & 0xFFFFFFFF;
     EXPECT_EQ(rids[0].GetSlotNum(), value);
   }
 
-  // for (auto it = tree.Begin(); it != tree.End(); ++it) {
-  //   index_key = (*it).first;
-  //   rid = (*it).second;
-  //   EXPECT_EQ(rid.GetPageId(), mp[index_key.ToString()].GetPageId());
-  //   EXPECT_EQ(rid.GetSlotNum(), mp[index_key.ToString()].GetSlotNum());
-  // }
+  for (auto it = tree.Begin(); it != tree.End(); ++it) {
+    index_key = (*it).first;
+    rid = (*it).second;
+    EXPECT_EQ(rid.GetPageId(), mp[index_key.ToString()].GetPageId());
+    EXPECT_EQ(rid.GetSlotNum(), mp[index_key.ToString()].GetSlotNum());
+  }
 
   bpm->UnpinPage(HEADER_PAGE_ID, true);
   delete transaction;
@@ -446,7 +446,8 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC1) {
   remove("test.db");
   remove("test.log");
 }
-/*TEST(BPlusTreeConcurrentTestC1, ScaleTestC2) {
+
+TEST(BPlusTreeConcurrentTestC1, ScaleTestC2) {  // FFFFFFFFFFFF
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema.get());
@@ -475,7 +476,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC1) {
   auto rng = std::default_random_engine{};
   std::shuffle(keys.begin(), keys.end(), rng);
   for (auto key : keys) {
-    std::cout << "key is " << key << std::endl;
+    // std::cout << "key is " << key << std::endl;
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
@@ -495,7 +496,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC1) {
 
   for (auto key : keys) {
     index_key.SetFromInteger(key);
-    std::cout << "key is " << key << std::endl;
+    // std::cout << "key is " << key << std::endl;
     tree.Remove(index_key, transaction);
   }
 
@@ -559,7 +560,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC3) {
   auto rng = std::default_random_engine{};
   std::shuffle(keys.begin(), keys.end(), rng);
   for (auto key : keys) {
-    std::cout << "key is " << key << std::endl;
+    // std::cout << "key is " << key << std::endl;
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
@@ -579,7 +580,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC3) {
 
   for (auto key : keys) {
     index_key.SetFromInteger(key);
-    std::cout << "key is " << key << std::endl;
+    // std::cout << "key is " << key << std::endl;
     tree.Remove(index_key, transaction);
   }
 
@@ -643,7 +644,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC4) {
   auto rng = std::default_random_engine{};
   // std::shuffle(keys.begin(), keys.end(), rng);
   for (auto key : keys) {
-    std::cout << "key is " << key << std::endl;
+    // std::cout << "key is " << key << std::endl;
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
@@ -663,7 +664,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC4) {
 
   for (auto key : keys) {
     index_key.SetFromInteger(key);
-    std::cout << "key is " << key << std::endl;
+    // std::cout << "key is " << key << std::endl;
     tree.Remove(index_key, transaction);
   }
 
@@ -727,7 +728,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC5) {
   auto rng = std::default_random_engine{};
   std::shuffle(keys.begin(), keys.end(), rng);
   for (auto key : keys) {
-   // std::cout << "key is " << key << std::endl;
+    // std::cout << "key is " << key << std::endl;
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
@@ -747,7 +748,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC5) {
 
   for (auto key : keys) {
     index_key.SetFromInteger(key);
-    std::cout << "key is " << key << std::endl;
+    // std::cout << "key is " << key << std::endl;
     tree.Remove(index_key, transaction);
   }
 
@@ -809,9 +810,9 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC6) {
   std::unordered_map<int64_t, RID> mp;
   // randomized the insertion order
   auto rng = std::default_random_engine{};
-  //std::shuffle(keys.begin(), keys.end(), rng);
+  // std::shuffle(keys.begin(), keys.end(), rng);
   for (auto key : keys) {
-    std::cout << "key is " << key << std::endl;
+    // std::cout << "key is " << key << std::endl;
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
@@ -831,7 +832,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC6) {
 
   for (auto key : keys) {
     index_key.SetFromInteger(key);
-    std::cout << "key is " << key << std::endl;
+    // std::cout << "key is " << key << std::endl;
     tree.Remove(index_key, transaction);
   }
 
@@ -865,8 +866,8 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC6) {
   delete bpm;
   remove("test.db");
   remove("test.log");
-}*/
-/*TEST(BPlusTreeConcurrentTestC2Seq, InsertTest1) { // pass
+}
+TEST(BPlusTreeConcurrentTestC2Seq, InsertTest1) {  // pass
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema.get());
@@ -990,6 +991,6 @@ TEST(BPlusTreeConcurrentTestC2Seq, InsertTest2) {
   delete bpm;
   remove("test.db");
   remove("test.log");
-}*/
+}
 
 }  // namespace bustub
