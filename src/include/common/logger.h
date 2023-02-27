@@ -40,7 +40,7 @@ namespace bustub {
 
 // https://blog.galowicz.de/2016/02/20/short_file_macro/
 using cstr = const char *;
-#define GREEEN "\033[32m"
+#define GREEN "\033[32m"
 #define RED "\033[31m"
 #define YELLOW "\033[33m"
 #define END "\033[0m"

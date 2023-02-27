@@ -112,7 +112,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
     if (comparator_(leafpage->KeyAt(i), key) == 0) {         // 已经存在
       buffer_pool_manager_->UnpinPage(leaf_page_id, false);  // 返回前unpin
       // std:: cout << RED << "Insert return false, leaf_page_id is " << leaf_page_id << END << std::endl;
-      // std:: cout << GREEEN << "key is " << key << END << std::endl;
+      // std:: cout << GREEN << "key is " << key << END << std::endl;
       return false;
     }
   }
@@ -222,18 +222,19 @@ void BPLUSTREE_TYPE::InsertInParent(BPlusTreePage *leftpage, BPlusTreePage *righ
   std::memcpy(static_cast<void *>(temp), static_cast<void *>(parentpage->GetPointer(0)),
               size * parentpage->GetMappingTypeSize());
   std::memmove(static_cast<void *>(&temp[index + 1]), static_cast<void *>(&temp[index]),
-               (size - index) * sizeof(internalpair));
+               (size - index) * sizeof(internalpair));  // size ????
 
   temp[index].first = key;
   temp[index].second = rightpage->GetPageId();
 
+  // std::cout << GREEN << "InsertInParent: parent split" << END << std::endl;
   page_id_t right_parent_id;
   auto *rightparent = reinterpret_cast<InternalPage *>(buffer_pool_manager_->NewPage(&right_parent_id)->GetData());
   rightparent->Init(right_parent_id, INVALID_PAGE_ID, internal_max_size_);
   // parent节点要分裂, 申请新的节点
   auto left_dst = parentpage->GetPointer(0);
   auto right_dst = rightparent->GetPointer(0);
-  int left_size = (size + 2) / 2;
+  int left_size = (size + 2) / 2;  // 一定成立吗 temp中由size+1个（k/v)
   int right_size = size + 1 - left_size;
   std::memcpy(static_cast<void *>(left_dst), static_cast<void *>(temp), left_size * sizeof(internalpair));
   std::memcpy(static_cast<void *>(right_dst), static_cast<void *>(&temp[left_size]), right_size * sizeof(internalpair));
@@ -243,11 +244,12 @@ void BPLUSTREE_TYPE::InsertInParent(BPlusTreePage *leftpage, BPlusTreePage *righ
   } else {
     rightpage->SetParentPageId(parent_id);
   }
+  parentpage->SetSize(left_size);
   rightparent->SetSize(right_size);                               // 分裂之后，设置左右两个父节点的size
   buffer_pool_manager_->UnpinPage(leftpage->GetPageId(), true);   // unpin the child page for the change of parent id
   buffer_pool_manager_->UnpinPage(rightpage->GetPageId(), true);  // unpin the child page for the change of parent id
   // 提前把之后不需要的 leftpage, rightpage unpin
-  // 考虑buffer size 为5，header page在buffer, parent page, right parent, left ,right page都在buffer中
+  // 考虑buffer size 为5，header page, parent page, right parent, left page, right page都在buffer中
   // 之后fetch返回错误，所以尽可能提前unpin
   for (int i = 0; i < right_size; ++i) {  // 改变由rightparent指向的page的父节点
     if (i + left_size == index) {         // 此时这里指向rightpage, rightpage已经设置好parentId
@@ -300,17 +302,19 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
 
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::DeleteEntry(BPlusTreePage *page, const KeyType &key) {
+  // std::cout << "DeleteEntry " << page->GetPageId() << " " << key << std::endl;
   int size = page->GetSize();
   // std::cout << "size is " << size << std::endl;
   if (page->IsLeafPage()) {
     auto *leafpage = reinterpret_cast<LeafPage *>(page);
-    // std::cout << GREEEN << "leafpage is " << leafpage << END << std::endl;
+    // std::cout << GREEN << "leafpage is " << leafpage << END << std::endl;
     // std::cout << RED << "size is " << size << END <<  std::endl;
     for (int i = 0; i < size; ++i) {
       if (comparator_(leafpage->KeyAt(i), key) == 0) {  // i 就是要被删除的位置
         memmove(static_cast<void *>(leafpage->GetPointer(i)), static_cast<void *>(leafpage->GetPointer(i + 1)),
                 (size - i - 1) * leafpage->GetMappingTypeSize());
         leafpage->SetSize(size - 1);
+        break;
       }
     }
   } else {
@@ -320,6 +324,7 @@ void BPLUSTREE_TYPE::DeleteEntry(BPlusTreePage *page, const KeyType &key) {
         memmove(static_cast<void *>(internalpage->GetPointer(i)), static_cast<void *>(internalpage->GetPointer(i + 1)),
                 (size - i - 1) * internalpage->GetMappingTypeSize());
         internalpage->SetSize(size - 1);
+        break;
       }
     }
   }
@@ -337,12 +342,14 @@ void BPLUSTREE_TYPE::DeleteEntry(BPlusTreePage *page, const KeyType &key) {
   }
   // 问题是如果b+树中只有一个叶子节点，这个叶子节点也是根节点，size < 2，显然不能删除节点
   // size < min_size
-  if (page->IsRootPage()) {    // only one pointer left;
+  if (page->IsRootPage()) {    // only one pointer left; size == 1 || size == 0
     if (page->IsLeafPage()) {  // 也是叶子节点
       if (size == 0) {         // 唯一的节点中没有元素了
         buffer_pool_manager_->UnpinPage(root_page_id_, true);
         buffer_pool_manager_->DeletePage(root_page_id_);  // 删除这一页, 清空B+树
         root_page_id_ = INVALID_PAGE_ID;
+      } else {  // size == 1, unpin &  返回
+        buffer_pool_manager_->UnpinPage(root_page_id_, true);
       }
     } else {  // internalpage
       auto *rootpage = reinterpret_cast<InternalPage *>(page);
@@ -359,7 +366,7 @@ void BPLUSTREE_TYPE::DeleteEntry(BPlusTreePage *page, const KeyType &key) {
     return;
   }
 
-  // 不是 root 或者 page->GetSize() >= page->GetMinSize()
+  // 不是 root 并且 page->GetSize() < page->GetMinSize()
   // ************************** merge or redistribute ********************************
   // find siblings
   // 这里的原则是优先找左边的 sibling,
@@ -374,12 +381,12 @@ void BPLUSTREE_TYPE::DeleteEntry(BPlusTreePage *page, const KeyType &key) {
     if (parent->ValueAt(i) == page_id) {
       if (i == 0) {  // page 是parent的最左边孩子
         sibling_id = parent->ValueAt(1);
-        k = parent->KeyAt(1);
+        k = parent->KeyAt(1);  // k 指向sibling_page
         k_index = 1;
         flag = false;
       } else {
         sibling_id = parent->ValueAt(i - 1);
-        k = parent->KeyAt(i);
+        k = parent->KeyAt(i);  // k 指向 page
         k_index = i;
       }
       break;
@@ -395,6 +402,7 @@ void BPLUSTREE_TYPE::DeleteEntry(BPlusTreePage *page, const KeyType &key) {
       sibling_page = page;
       page = temp;
     }
+    // 找出page_id
     sibling_id = sibling_page->GetPageId();
     page_id = page->GetPageId();
 
@@ -411,7 +419,10 @@ void BPLUSTREE_TYPE::DeleteEntry(BPlusTreePage *page, const KeyType &key) {
       // 设置合并之后的节点size
       leaf_sibling_page->SetSize(sibling_size + size);
       leaf_sibling_page->SetNextPageId(leaf_page->GetNextPageId());  // 设置 next_page_id
-    } else {  // ******************** 非叶子节点合并 *****************
+      buffer_pool_manager_->UnpinPage(sibling_id, true);             // unpin 左边孩子
+      buffer_pool_manager_->UnpinPage(page_id, true);
+      buffer_pool_manager_->DeletePage(page_id);  // unpin 右边孩子并且删除节点
+    } else {                                      // ******************** 非叶子节点合并 *****************
       auto *internal_sibling_page = reinterpret_cast<InternalPage *>(sibling_page);
       auto *internal_page = reinterpret_cast<InternalPage *>(page);
       internal_page->SetKeyAt(0, k);
@@ -419,10 +430,19 @@ void BPLUSTREE_TYPE::DeleteEntry(BPlusTreePage *page, const KeyType &key) {
       auto src = internal_page->GetPointer(0);
       memcpy(static_cast<void *>(dst), static_cast<void *>(src), size * internal_page->GetMappingTypeSize());
       internal_sibling_page->SetSize(sibling_size + size);
+      buffer_pool_manager_->UnpinPage(sibling_id, true);  // unpin 左边孩子
+
+      for (int i = 0; i < size; ++i) {
+        page_id_t child_id = internal_page->ValueAt(i);
+        auto *child = reinterpret_cast<BPlusTreePage *>(buffer_pool_manager_->FetchPage(child_id)->GetData());
+        child->SetParentPageId(sibling_id);
+        buffer_pool_manager_->UnpinPage(child_id, true);
+      }
+
+      buffer_pool_manager_->UnpinPage(page_id, true);
+      buffer_pool_manager_->DeletePage(page_id);  // unpin 右边孩子并且删除节点
     }
-    buffer_pool_manager_->UnpinPage(sibling_page->GetPageId(), true);  // unpin 左边孩子
-    buffer_pool_manager_->UnpinPage(page->GetPageId(), true);
-    buffer_pool_manager_->DeletePage(page->GetPageId());  // unpin 右边孩子并且删除节点
+
     // 继续在父节点删除指向右边孩子的k
     DeleteEntry(parent, k);
     return;
@@ -430,6 +450,7 @@ void BPLUSTREE_TYPE::DeleteEntry(BPlusTreePage *page, const KeyType &key) {
   // sibling_size + size > max_size
   //****************************** 重分配 ********************************
   // page中节点少一个，要从sibling_page中取出一个
+  // 重新分配之后，
   if (flag) {                  // flag为真，sibling_page 在左边 （sibling_page, page)
     if (page->IsLeafPage()) {  // ***********叶子节点重分配***************
       auto *leaf_sibling_page = reinterpret_cast<LeafPage *>(sibling_page);
@@ -448,7 +469,11 @@ void BPLUSTREE_TYPE::DeleteEntry(BPlusTreePage *page, const KeyType &key) {
       leaf_page->SetSize(size + 1);
       // 将parent中指向右边孩子的k 设置为last_k, 保持有序性
       parent->SetKeyAt(k_index, last_k);
-    } else {  // ******************* 非叶子结点重分配**************
+      // unpin 左右孩子，以及父节点
+      buffer_pool_manager_->UnpinPage(parent_id, true);
+      buffer_pool_manager_->UnpinPage(sibling_id, true);
+      buffer_pool_manager_->UnpinPage(page_id, true);
+    } else {  // ******************* 非叶子结点重分配**************  左->右
       auto *internal_sibling_page = reinterpret_cast<InternalPage *>(sibling_page);  // 左边
       auto *internal_page = reinterpret_cast<InternalPage *>(page);
       // 删除左边孩子的最后一个 (last_k, last_v)
@@ -461,19 +486,24 @@ void BPLUSTREE_TYPE::DeleteEntry(BPlusTreePage *page, const KeyType &key) {
       auto dst = internal_page->GetPointer(1);
       memmove(static_cast<void *>(dst), static_cast<void *>(src), size * internal_page->GetMappingTypeSize());
       // 右移之后将第一个value设为做孩子最后一个value
+      internal_page->SetKeyAt(0, last_k);
       internal_page->SetValueAt(0, last_v);
       internal_page->SetSize(size + 1);
       // 右孩子第一个k变了，修改parent中指向右孩子的k为左孩子的最后一个key
       parent->SetKeyAt(k_index, last_k);
+      // unpin 左右孩子，以及父节点
+      buffer_pool_manager_->UnpinPage(parent_id, true);
+      buffer_pool_manager_->UnpinPage(sibling_id, true);
+      buffer_pool_manager_->UnpinPage(page_id, true);
+      auto *child = reinterpret_cast<BPlusTreePage *>(buffer_pool_manager_->FetchPage(last_v)->GetData());
+      child->SetParentPageId(page_id);
+      buffer_pool_manager_->UnpinPage(last_v, true);
     }
-    // unpin 左右孩子，以及父节点
-    buffer_pool_manager_->UnpinPage(parent_id, true);
-    buffer_pool_manager_->UnpinPage(sibling_id, true);
-    buffer_pool_manager_->UnpinPage(page_id, true);
+
     return;
   }
 
-  // flag 为假， page 在左边 sibling_page 在右边 (page, sibling_page)
+  // flag 为假， page 在左边 sibling_page 在右边 从sibling_page中取出一个(k/v)放入page
   // ***********叶子节点重分配***************
   if (sibling_page->IsLeafPage()) {  // 右边孩子的第一个(k,v)放在左边孩子的最后一个(k,v)
     auto *leaf_page = reinterpret_cast<LeafPage *>(page);                  // 左边
@@ -493,7 +523,13 @@ void BPLUSTREE_TYPE::DeleteEntry(BPlusTreePage *page, const KeyType &key) {
     leaf_page->SetSize(size + 1);
     // 将parent中指向右边孩子的k 设置为first_k, 保持有序性
     parent->SetKeyAt(k_index, leaf_sibling_page->KeyAt(0));
+
+    // unpin 左右两个孩子以及父亲节点
+    buffer_pool_manager_->UnpinPage(sibling_id, true);
+    buffer_pool_manager_->UnpinPage(page_id, true);
+    buffer_pool_manager_->UnpinPage(parent_id, true);
   } else {  // ******************* 非叶子结点重分配**************
+    // std::cout << "internal node redistribution, right->left" << std::endl;
     auto *internal_page = reinterpret_cast<InternalPage *>(page);  // 左边
     auto *internal_sibling_page = reinterpret_cast<InternalPage *>(sibling_page);
     // 删除右边孩子的第一个 (first_k, first_v)
@@ -508,11 +544,17 @@ void BPLUSTREE_TYPE::DeleteEntry(BPlusTreePage *page, const KeyType &key) {
             (sibling_size - 1) * internal_sibling_page->GetMappingTypeSize());
     internal_sibling_page->SetSize(sibling_size - 1);  // 右孩子元素个数少一
     parent->SetKeyAt(k_index, internal_sibling_page->KeyAt(0));
+
+    // unpin 左右两个孩子以及父亲节点
+    buffer_pool_manager_->UnpinPage(sibling_id, true);
+    buffer_pool_manager_->UnpinPage(page_id, true);
+    buffer_pool_manager_->UnpinPage(parent_id, true);
+
+    // std::cout << "change parent of " << first_v << std::endl;
+    auto *child = reinterpret_cast<BPlusTreePage *>(buffer_pool_manager_->FetchPage(first_v)->GetData());
+    child->SetParentPageId(page_id);
+    buffer_pool_manager_->UnpinPage(first_v, true);
   }
-  // unpin 左右两个孩子以及父亲节点
-  buffer_pool_manager_->UnpinPage(sibling_id, true);
-  buffer_pool_manager_->UnpinPage(page_id, true);
-  buffer_pool_manager_->UnpinPage(parent_id, true);
 }
 
 /*****************************************************************************

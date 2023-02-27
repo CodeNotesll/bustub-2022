@@ -87,6 +87,8 @@ class BufferPoolManager {
   /** @return size of the buffer pool */
   virtual auto GetPoolSize() -> size_t = 0;
 
+  //  void Info() { InfoImp(); }
+
  protected:
   /**
    * Grading function. Do not modify!
@@ -141,5 +143,7 @@ class BufferPoolManager {
    * Flushes all the pages in the buffer pool to disk.
    */
   virtual void FlushAllPgsImp() = 0;
+
+  // virtual void InfoImp() = 0;
 };
 }  // namespace bustub

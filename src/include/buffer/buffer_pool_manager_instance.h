@@ -149,6 +149,10 @@ class BufferPoolManagerInstance : public BufferPoolManager {
    */
   auto GetFrameId(frame_id_t *fid) -> bool;
 
+  // void InfoImp() override {
+  //   std::cout << "replacer_->Size() " << replacer_->Size() << std::endl;
+  //   std::cout << "freelist size is " << free_list_.size() << std::endl;
+  // }
   /**
    * @brief called by NewPgImp() and FetchPgImp() when a new page arrives in buffer
    */

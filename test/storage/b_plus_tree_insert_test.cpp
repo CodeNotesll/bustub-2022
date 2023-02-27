@@ -15,10 +15,10 @@
 #include <random>
 #include <unordered_map>
 #include "buffer/buffer_pool_manager_instance.h"
+#include "common/logger.h"
 #include "gtest/gtest.h"
 #include "storage/index/b_plus_tree.h"
 #include "test_util.h"  // NOLINT
-
 namespace bustub {
 
 TEST(BPlusTreeTests, InsertTest1) {
@@ -384,7 +384,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC1) {
   std::unordered_map<int64_t, RID> mp;
   // randomized the insertion order
   auto rng = std::default_random_engine{};
-  // std::shuffle(keys.begin(), keys.end(), rng);
+  // std::shuffle(keys.begin(), keys.end(), rng); 都通过了
   for (auto key : keys) {
     // std::cout << "key is " << key << std::endl;
     int64_t value = key & 0xFFFFFFFF;
@@ -471,18 +471,20 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC2) {  // FFFFFFFFFFFF
   for (int64_t key = 1; key < scale; key++) {
     keys.push_back(key);
   }
+  // bpm->Info();
   std::unordered_map<int64_t, RID> mp;
   // randomized the insertion order
   auto rng = std::default_random_engine{};
   std::shuffle(keys.begin(), keys.end(), rng);
   for (auto key : keys) {
-    // std::cout << "key is " << key << std::endl;
+    std::cout << "key is " << key << std::endl;
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
     tree.Insert(index_key, rid, transaction);
     mp[index_key.ToString()] = rid;
   }
+  // bpm->Info();
   std::vector<RID> rids;
   for (auto key : keys) {
     rids.clear();
@@ -493,13 +495,18 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC2) {  // FFFFFFFFFFFF
     int64_t value = key & 0xFFFFFFFF;
     EXPECT_EQ(rids[0].GetSlotNum(), value);
   }
-
+  // bpm->Info();
   for (auto key : keys) {
     index_key.SetFromInteger(key);
     // std::cout << "key is " << key << std::endl;
     tree.Remove(index_key, transaction);
+    // std::cout << GREEN << "*********Info********" << END  << std::endl;
+    // bpm->Info();
+    // std::cout << GREEN << "*********Info********" << END  << std::endl;
   }
-
+  EXPECT_EQ(tree.GetRootPageId(), INVALID_PAGE_ID);
+  // bpm->Info();
+  std::cout << GREEN << "insert & remove success " << END << std::endl;
   for (auto key : keys) {
     // std::cout << "key is " << key << std::endl;
     int64_t value = key & 0xFFFFFFFF;
@@ -699,6 +706,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC4) {
   remove("test.db");
   remove("test.log");
 }
+
 TEST(BPlusTreeConcurrentTestC1, ScaleTestC5) {
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
