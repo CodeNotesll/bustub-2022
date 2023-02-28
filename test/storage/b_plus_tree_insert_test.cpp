@@ -475,9 +475,9 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC2) {  // FFFFFFFFFFFF
   std::unordered_map<int64_t, RID> mp;
   // randomized the insertion order
   auto rng = std::default_random_engine{};
-  std::shuffle(keys.begin(), keys.end(), rng);
+  std::shuffle(keys.begin(), keys.end(), rng);  // 都通过了
   for (auto key : keys) {
-    std::cout << "key is " << key << std::endl;
+    // std::cout << "key is " << key << std::endl;
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
@@ -565,7 +565,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC3) {
   std::unordered_map<int64_t, RID> mp;
   // randomized the insertion order
   auto rng = std::default_random_engine{};
-  std::shuffle(keys.begin(), keys.end(), rng);
+  std::shuffle(keys.begin(), keys.end(), rng);  // 都通过了
   for (auto key : keys) {
     // std::cout << "key is " << key << std::endl;
     int64_t value = key & 0xFFFFFFFF;
@@ -649,7 +649,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC4) {
   std::unordered_map<int64_t, RID> mp;
   // randomized the insertion order
   auto rng = std::default_random_engine{};
-  // std::shuffle(keys.begin(), keys.end(), rng);
+  // std::shuffle(keys.begin(), keys.end(), rng); 都通过了
   for (auto key : keys) {
     // std::cout << "key is " << key << std::endl;
     int64_t value = key & 0xFFFFFFFF;
@@ -734,7 +734,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC5) {
   std::unordered_map<int64_t, RID> mp;
   // randomized the insertion order
   auto rng = std::default_random_engine{};
-  std::shuffle(keys.begin(), keys.end(), rng);
+  std::shuffle(keys.begin(), keys.end(), rng);  // 都通过了
   for (auto key : keys) {
     // std::cout << "key is " << key << std::endl;
     int64_t value = key & 0xFFFFFFFF;
@@ -818,7 +818,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC6) {
   std::unordered_map<int64_t, RID> mp;
   // randomized the insertion order
   auto rng = std::default_random_engine{};
-  // std::shuffle(keys.begin(), keys.end(), rng);
+  // std::shuffle(keys.begin(), keys.end(), rng); 都通过了
   for (auto key : keys) {
     // std::cout << "key is " << key << std::endl;
     int64_t value = key & 0xFFFFFFFF;
@@ -875,6 +875,176 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC6) {
   remove("test.db");
   remove("test.log");
 }
+TEST(BPlusTreeConcurrentTestC1, ScaleTestC7) {
+  // create KeyComparator and index schema
+  auto key_schema = ParseCreateStatement("a bigint");
+  GenericComparator<8> comparator(key_schema.get());
+
+  DiskManager *disk_manager = new DiskManager("test.db");
+  BufferPoolManager *bpm = new BufferPoolManagerInstance(5, disk_manager);
+  // create b+ tree
+  BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, 3, 5);
+  GenericKey<8> index_key;
+  RID rid;
+  // create transaction
+  Transaction *transaction = new Transaction(0);
+  // create and fetch header_page
+  page_id_t page_id;
+  auto header_page = bpm->NewPage(&page_id);
+  EXPECT_EQ(page_id, 0);
+  (void)header_page;
+
+  int64_t scale = 800;
+  std::vector<int64_t> keys;
+  for (int64_t key = 1; key < scale; key++) {
+    keys.push_back(key);
+  }
+  std::unordered_map<int64_t, RID> mp;
+  // randomized the insertion order
+  auto rng = std::default_random_engine{};
+  std::shuffle(keys.begin(), keys.end(), rng);  // 都通过了
+  for (auto key : keys) {
+    // std::cout << "key is " << key << std::endl;
+    int64_t value = key & 0xFFFFFFFF;
+    rid.Set(static_cast<int32_t>(key >> 32), value);
+    index_key.SetFromInteger(key);
+    tree.Insert(index_key, rid, transaction);
+    mp[index_key.ToString()] = rid;
+  }
+  std::vector<RID> rids;
+  for (auto key : keys) {
+    rids.clear();
+    index_key.SetFromInteger(key);
+    tree.GetValue(index_key, &rids);
+    EXPECT_EQ(rids.size(), 1);
+
+    int64_t value = key & 0xFFFFFFFF;
+    EXPECT_EQ(rids[0].GetSlotNum(), value);
+  }
+
+  for (auto key : keys) {
+    index_key.SetFromInteger(key);
+    // std::cout << "key is " << key << std::endl;
+    tree.Remove(index_key, transaction);
+  }
+
+  for (auto key : keys) {
+    // std::cout << "key is " << key << std::endl;
+    int64_t value = key & 0xFFFFFFFF;
+    rid.Set(static_cast<int32_t>(key >> 32), value);
+    index_key.SetFromInteger(key);
+    tree.Insert(index_key, rid, transaction);
+  }
+  for (auto key : keys) {
+    rids.clear();
+    index_key.SetFromInteger(key);
+    tree.GetValue(index_key, &rids);
+    EXPECT_EQ(rids.size(), 1);
+
+    int64_t value = key & 0xFFFFFFFF;
+    EXPECT_EQ(rids[0].GetSlotNum(), value);
+  }
+
+  for (auto it = tree.Begin(); it != tree.End(); ++it) {
+    index_key = (*it).first;
+    rid = (*it).second;
+    EXPECT_EQ(rid.GetPageId(), mp[index_key.ToString()].GetPageId());
+    EXPECT_EQ(rid.GetSlotNum(), mp[index_key.ToString()].GetSlotNum());
+  }
+
+  bpm->UnpinPage(HEADER_PAGE_ID, true);
+  delete transaction;
+  delete disk_manager;
+  delete bpm;
+  remove("test.db");
+  remove("test.log");
+}
+TEST(BPlusTreeConcurrentTestC1, ScaleTestC8) {
+  // create KeyComparator and index schema
+  auto key_schema = ParseCreateStatement("a bigint");
+  GenericComparator<8> comparator(key_schema.get());
+
+  DiskManager *disk_manager = new DiskManager("test.db");
+  BufferPoolManager *bpm = new BufferPoolManagerInstance(5, disk_manager);
+  // create b+ tree
+  BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, 3, 5);
+  GenericKey<8> index_key;
+  RID rid;
+  // create transaction
+  Transaction *transaction = new Transaction(0);
+  // create and fetch header_page
+  page_id_t page_id;
+  auto header_page = bpm->NewPage(&page_id);
+  EXPECT_EQ(page_id, 0);
+  (void)header_page;
+
+  int64_t scale = 800;
+  std::vector<int64_t> keys;
+  for (int64_t key = 1; key < scale; key++) {
+    keys.push_back(key);
+  }
+  std::unordered_map<int64_t, RID> mp;
+  // randomized the insertion order
+  auto rng = std::default_random_engine{};
+  // std::shuffle(keys.begin(), keys.end(), rng); //都通过了
+  for (int i = static_cast<int>(keys.size() - 1); i >= 0; --i) {  // 倒序插入
+    int64_t key = keys[i];
+    int64_t value = key & 0xFFFFFFFF;
+    rid.Set(static_cast<int32_t>(key >> 32), value);
+    index_key.SetFromInteger(key);
+    tree.Insert(index_key, rid, transaction);
+    mp[index_key.ToString()] = rid;
+  }
+  std::vector<RID> rids;
+  for (auto key : keys) {
+    rids.clear();
+    index_key.SetFromInteger(key);
+    tree.GetValue(index_key, &rids);
+    EXPECT_EQ(rids.size(), 1);
+
+    int64_t value = key & 0xFFFFFFFF;
+    EXPECT_EQ(rids[0].GetSlotNum(), value);
+  }
+
+  std::shuffle(keys.begin(), keys.end(), rng);  // 随机删除  都通过了
+  for (auto key : keys) {
+    index_key.SetFromInteger(key);
+    // std::cout << "key is " << key << std::endl;
+    tree.Remove(index_key, transaction);
+  }
+  EXPECT_EQ(tree.GetRootPageId(), INVALID_PAGE_ID);
+  for (auto key : keys) {
+    // std::cout << "key is " << key << std::endl;
+    int64_t value = key & 0xFFFFFFFF;
+    rid.Set(static_cast<int32_t>(key >> 32), value);
+    index_key.SetFromInteger(key);
+    tree.Insert(index_key, rid, transaction);
+  }
+  for (auto key : keys) {
+    rids.clear();
+    index_key.SetFromInteger(key);
+    tree.GetValue(index_key, &rids);
+    EXPECT_EQ(rids.size(), 1);
+
+    int64_t value = key & 0xFFFFFFFF;
+    EXPECT_EQ(rids[0].GetSlotNum(), value);
+  }
+
+  for (auto it = tree.Begin(); it != tree.End(); ++it) {
+    index_key = (*it).first;
+    rid = (*it).second;
+    EXPECT_EQ(rid.GetPageId(), mp[index_key.ToString()].GetPageId());
+    EXPECT_EQ(rid.GetSlotNum(), mp[index_key.ToString()].GetSlotNum());
+  }
+
+  bpm->UnpinPage(HEADER_PAGE_ID, true);
+  delete transaction;
+  delete disk_manager;
+  delete bpm;
+  remove("test.db");
+  remove("test.log");
+}
+
 TEST(BPlusTreeConcurrentTestC2Seq, InsertTest1) {  // pass
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
