@@ -101,7 +101,7 @@ class BPlusTree {
   auto GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction = nullptr) -> bool;
 
   // get leaf page pointer that should contain the key
-  auto GetLeafPage(const KeyType &key, Transaction *transaction = nullptr, OpType type = OpType::READ) -> LeafPage *;
+  auto GetLeafPage(const KeyType &key, Transaction *transaction = nullptr, OpType type = OpType::READ) -> Page *;
 
   // check whether a page is safe under specific operation type(read, insert, delete)
   auto IsSafe(BPlusTreePage *tree_node, OpType type) -> bool;
