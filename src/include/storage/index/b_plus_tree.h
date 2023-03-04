@@ -35,6 +35,7 @@ namespace bustub {
  */
 INDEX_TEMPLATE_ARGUMENTS
 class BPlusTree {
+  enum class OpType { READ = 0, INSERT, DELETE };
   using InternalPage = BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>;
   using LeafPage = BPlusTreeLeafPage<KeyType, ValueType, KeyComparator>;
 
@@ -68,14 +69,16 @@ class BPlusTree {
    * @param value
    */
 
-  void InsertInLeaf(LeafPage *leafpage, const KeyType &key, const ValueType &value);
+  void InsertInLeaf(LeafPage *leaf_node, const KeyType &key, const ValueType &value);
   /**
    * @brief leftpage 和 rightpage是一个节点分裂得到的，更新父亲节点
-   *
+   * 保持 InsertInParent()被调用时，transaction pageSet中 最后一个page是leftpage
+   * leftpage 没有unlatch_以及unpin, rightpage是分裂得到的节点
    * @param internalpage
    * @param page_id
    */
-  void InsertInParent(BPlusTreePage *leftpage, BPlusTreePage *rightpage, const KeyType &key);
+  void InsertInParent(BPlusTreePage *left_node, BPlusTreePage *right_node, const KeyType &key,
+                      Transaction *transaction);
 
   /*
    * Delete key & value pair associated with input key
@@ -88,17 +91,30 @@ class BPlusTree {
 
   /**
    * @brief delete an entry in page, page can be either a leaf page or an internal page
-   *
+   * 在调用 DeleteEnty时，transaction的pageset中保存叶子节点以及祖先节点在buffer中frame
    * @param page
    * @param key
    */
-  void DeleteEntry(BPlusTreePage *page, const KeyType &key);
+  void DeleteEntry(BPlusTreePage *node, const KeyType &key, Transaction *transaction);
 
   // return the value associated with a given key
   auto GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction = nullptr) -> bool;
 
   // get leaf page pointer that should contain the key
-  auto GetLeafPage(const KeyType &key) -> LeafPage *;
+  auto GetLeafPage(const KeyType &key, Transaction *transaction = nullptr, OpType type = OpType::READ) -> LeafPage *;
+
+  // check whether a page is safe under specific operation type(read, insert, delete)
+  auto IsSafe(BPlusTreePage *tree_node, OpType type) -> bool;
+
+  // 找到一个安全的节点，释放祖先节点锁以及root_id的锁
+  /**
+   * @brief 将transaction pageset中节点解锁并且unpin
+   *
+   * @param transaction
+   * @param type 根据操作类型决定是解读锁还是写锁
+   * @param remain remain为1，表示保留最后一个，remain为0：unlatch pageset中所有page
+   */
+  void ReleasePageLatch(Transaction *transaction, OpType type, size_t remain);
 
   // return the page id of the root node
   auto GetRootPageId() -> page_id_t;
@@ -158,6 +174,8 @@ class BPlusTree {
   KeyComparator comparator_;
   int leaf_max_size_;
   int internal_max_size_;
+  //
+  std::mutex root_id_latch_;
 };
 
 }  // namespace bustub

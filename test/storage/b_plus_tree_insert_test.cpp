@@ -393,6 +393,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC1) {
     tree.Insert(index_key, rid, transaction);
     mp[index_key.ToString()] = rid;
   }
+  EXPECT_EQ(0, transaction->GetPageSet()->size());
   std::vector<RID> rids;
   for (auto key : keys) {
     rids.clear();
@@ -404,11 +405,15 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC1) {
     EXPECT_EQ(rids[0].GetSlotNum(), value);
   }
   std::cout << "First insert success " << std::endl;
+
+  EXPECT_EQ(0, transaction->GetPageSet()->size());
+
   for (auto key : keys) {
     index_key.SetFromInteger(key);
-    // std::cout << "key removed " << key << std::endl;
+    std::cout << "key removed " << key << std::endl;
     tree.Remove(index_key, transaction);
   }
+  std::cout << "remove success " << std::endl;
   EXPECT_EQ(tree.GetRootPageId(), INVALID_PAGE_ID);
   for (auto key : keys) {
     int64_t value = key & 0xFFFFFFFF;
