@@ -233,8 +233,9 @@ TEST(BPlusTreeConcurrentTestC1, SplitTest) {
   }
 
   index_key.SetFromInteger(1);
-  //auto leaf_node = reinterpret_cast<*>(tree.GetLeafPage(index_key)->GetData()); 
-  auto leaf_node = reinterpret_cast<BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *>(tree.GetLeafPage(index_key)->GetData());
+  // auto leaf_node = reinterpret_cast<*>(tree.GetLeafPage(index_key)->GetData());
+  auto leaf_node = reinterpret_cast<BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *>(
+      tree.GetLeafPage(index_key)->GetData());
   // auto leaf_node =
   //     reinterpret_cast<BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>> *>(bpm->FetchPage(id)->GetData());
   ASSERT_NE(nullptr, leaf_node);
@@ -248,7 +249,7 @@ TEST(BPlusTreeConcurrentTestC1, SplitTest) {
         bpm->FetchPage(leaf_node->GetNextPageId()));
   }
 
-  //EXPECT_EQ(INVALID_PAGE_ID, leaf_node->GetNextPageId());
+  // EXPECT_EQ(INVALID_PAGE_ID, leaf_node->GetNextPageId());
 
   bpm->UnpinPage(HEADER_PAGE_ID, true);
   delete transaction;
@@ -558,7 +559,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC3) {
   GenericComparator<8> comparator(key_schema.get());
 
   DiskManager *disk_manager = new DiskManager("test.db");
-  BufferPoolManager *bpm = new BufferPoolManagerInstance(5, disk_manager);
+  BufferPoolManager *bpm = new BufferPoolManagerInstance(10, disk_manager);
   // create b+ tree
   BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, 20, 11);
   GenericKey<8> index_key;
@@ -579,7 +580,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC3) {
   std::unordered_map<int64_t, RID> mp;
   // randomized the insertion order
   auto rng = std::default_random_engine{};
-  std::shuffle(keys.begin(), keys.end(), rng);  // 都通过了
+  std::shuffle(keys.begin(), keys.end(), rng);  // 都通过了 并发的代码需要更大的buffersize 5->10
   for (auto key : keys) {
     // std::cout << "key is " << key << std::endl;
     int64_t value = key & 0xFFFFFFFF;
@@ -895,7 +896,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC7) {
   GenericComparator<8> comparator(key_schema.get());
 
   DiskManager *disk_manager = new DiskManager("test.db");
-  BufferPoolManager *bpm = new BufferPoolManagerInstance(5, disk_manager);
+  BufferPoolManager *bpm = new BufferPoolManagerInstance(10, disk_manager);
   // create b+ tree
   BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, 3, 5);
   GenericKey<8> index_key;
@@ -979,7 +980,7 @@ TEST(BPlusTreeConcurrentTestC1, ScaleTestC8) {
   GenericComparator<8> comparator(key_schema.get());
 
   DiskManager *disk_manager = new DiskManager("test.db");
-  BufferPoolManager *bpm = new BufferPoolManagerInstance(5, disk_manager);
+  BufferPoolManager *bpm = new BufferPoolManagerInstance(10, disk_manager);
   // create b+ tree
   BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, 3, 5);
   GenericKey<8> index_key;

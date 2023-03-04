@@ -16,6 +16,7 @@ BPLUSTREE_TYPE::BPlusTree(std::string name, BufferPoolManager *buffer_pool_manag
       comparator_(comparator),
       leaf_max_size_(leaf_max_size),
       internal_max_size_(internal_max_size) {
+  std::cout << "buffer pool size is " << buffer_pool_manager_->GetPoolSize() << std::endl;
   std::cout << leaf_max_size_ << " " << internal_max_size_ << std::endl;
 }
 
@@ -80,7 +81,7 @@ INDEX_TEMPLATE_ARGUMENTS  // release ancestor page latch
   }
 }
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::GetLeafPage(const KeyType &key, Transaction *transaction, OpType type) -> Page* {
+auto BPLUSTREE_TYPE::GetLeafPage(const KeyType &key, Transaction *transaction, OpType type) -> Page * {
   if (type == OpType::READ) {
     root_id_latch_.lock();
     Page *parent_page;
@@ -91,7 +92,7 @@ auto BPLUSTREE_TYPE::GetLeafPage(const KeyType &key, Transaction *transaction, O
 
     page->RLatch();
     root_id_latch_.unlock();
-    BPlusTreePage *bplustreepage = reinterpret_cast<BPlusTreePage *>(page->GetData()); 
+    auto *bplustreepage = reinterpret_cast<BPlusTreePage *>(page->GetData());
     while (!bplustreepage->IsLeafPage()) {
       parent_page = page;
       parent_id = cur_page_id;
@@ -122,55 +123,54 @@ auto BPLUSTREE_TYPE::GetLeafPage(const KeyType &key, Transaction *transaction, O
 
       bplustreepage = reinterpret_cast<BPlusTreePage *>(page->GetData());
     }
-    return page; 
-  } else {  // delete or insert
-    //std::cout << "before lock root_id_latch" << std::endl;
-    root_id_latch_.lock();
-    Page *virtual_page = reinterpret_cast<Page *>(&root_page_id_);
-    transaction->AddIntoPageSet(virtual_page);
+    return page;
+  }  // delete or insert
+  // std::cout << "before lock root_id_latch" << std::endl;
+  root_id_latch_.lock();
+  Page *virtual_page = reinterpret_cast<Page *>(&root_page_id_);
+  transaction->AddIntoPageSet(virtual_page);
 
-    page_id_t cur_page_id = root_page_id_;
-    Page *page = buffer_pool_manager_->FetchPage(cur_page_id);
-    page->WLatch();
-    transaction->AddIntoPageSet(page);  // 把节点页放入pageset中
+  page_id_t cur_page_id = root_page_id_;
+  Page *page = buffer_pool_manager_->FetchPage(cur_page_id);
+  page->WLatch();
+  transaction->AddIntoPageSet(page);  // 把节点页放入pageset中
 
-    // page指向frame中的一页，有is_dirty_，pin_count_, frame_id_ metadata,还有data 4kB的disk
-    auto *bplustreepage = reinterpret_cast<BPlusTreePage *>(page->GetData());
-    // 获取实际的磁盘page
-    while (!bplustreepage->IsLeafPage()) {       // 判断磁盘page是否是叶子节点, 不是叶子节点
-      //std::cout << "cur_page_id is " << cur_page_id << std::endl;
-      if (IsSafe(bplustreepage, type)) {         // 当前节点是安全的
-        ReleasePageLatch(transaction, type, 1);  // 释放祖先节点的锁，保留当前节点的锁
-      }
-      auto *internalpage = reinterpret_cast<InternalPage *>(bplustreepage);
-      int size = internalpage->GetSize();  // 获得array_数组大小
-      // parent_page_id = cur_page_id;
-      int i = 1;  // 使用二分优化
-      cur_page_id = internalpage->ValueAt(size - 1);
-      for (i = 1; i < size; ++i) {  // 找到数组第一个>= key的k
-        KeyType keyat = internalpage->KeyAt(i);
-        int comparesult = comparator_(keyat, key);
-        if (comparesult == -1) {  // keyat < key
-          continue;
-        }
-        if (comparesult == 0) {  // keyat = key
-          cur_page_id = internalpage->ValueAt(i);
-        } else {  // compresult = 1 keyat > key
-          cur_page_id = internalpage->ValueAt(i - 1);
-        }
-        break;
-      }
-      // buffer_pool_manager_->UnpinPage(parent_page_id, false);  //  先不用 unpin
-      page = buffer_pool_manager_->FetchPage(cur_page_id);  // 取出下一页
-      page->WLatch();
-      transaction->AddIntoPageSet(page);
-      bplustreepage = reinterpret_cast<BPlusTreePage *>(page->GetData());
-    }
-    if (IsSafe(bplustreepage, type)) {         // 判断叶子节点是安全的
+  // page指向frame中的一页，有is_dirty_，pin_count_, frame_id_ metadata,还有data 4kB的disk
+  auto *bplustreepage = reinterpret_cast<BPlusTreePage *>(page->GetData());
+  // 获取实际的磁盘page
+  while (!bplustreepage->IsLeafPage()) {  // 判断磁盘page是否是叶子节点, 不是叶子节点
+    // std::cout << "cur_page_id is " << cur_page_id << std::endl;
+    if (IsSafe(bplustreepage, type)) {         // 当前节点是安全的
       ReleasePageLatch(transaction, type, 1);  // 释放祖先节点的锁，保留当前节点的锁
     }
-    return page;
+    auto *internalpage = reinterpret_cast<InternalPage *>(bplustreepage);
+    int size = internalpage->GetSize();  // 获得array_数组大小
+    // parent_page_id = cur_page_id;
+    int i = 1;  // 使用二分优化
+    cur_page_id = internalpage->ValueAt(size - 1);
+    for (i = 1; i < size; ++i) {  // 找到数组第一个>= key的k
+      KeyType keyat = internalpage->KeyAt(i);
+      int comparesult = comparator_(keyat, key);
+      if (comparesult == -1) {  // keyat < key
+        continue;
+      }
+      if (comparesult == 0) {  // keyat = key
+        cur_page_id = internalpage->ValueAt(i);
+      } else {  // compresult = 1 keyat > key
+        cur_page_id = internalpage->ValueAt(i - 1);
+      }
+      break;
+    }
+    // buffer_pool_manager_->UnpinPage(parent_page_id, false);  //  先不用 unpin
+    page = buffer_pool_manager_->FetchPage(cur_page_id);  // 取出下一页
+    page->WLatch();
+    transaction->AddIntoPageSet(page);
+    bplustreepage = reinterpret_cast<BPlusTreePage *>(page->GetData());
   }
+  if (IsSafe(bplustreepage, type)) {         // 判断叶子节点是安全的
+    ReleasePageLatch(transaction, type, 1);  // 释放祖先节点的锁，保留当前节点的锁
+  }
+  return page;
 }  // getleafpage返回后，transaction中应该只有 leafpage以及因为leafpage不安全而锁住的祖先page
 
 /**
@@ -187,8 +187,8 @@ auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
   }
   // 获得叶子节点编号，
   root_id_latch_.unlock();  // 同样是释放root_id_的锁
-  Page* page = GetLeafPage(key, transaction, OpType::READ);
-  LeafPage* leafpage = reinterpret_cast<LeafPage *>(page->GetData());
+  Page *page = GetLeafPage(key, transaction, OpType::READ);
+  auto *leafpage = reinterpret_cast<LeafPage *>(page->GetData());
   page_id_t leaf_page_id = leafpage->GetPageId();
   int size = leafpage->GetSize();  // 获得array_数组大小
   for (int i = 0; i < size; ++i) {
@@ -199,9 +199,9 @@ auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
       return true;
     }
   }
-  //ReleasePageLatch(transaction, OpType::READ, 0);
+  // ReleasePageLatch(transaction, OpType::READ, 0);
   page->RUnlatch();
-  buffer_pool_manager_->UnpinPage(leaf_page_id, false);   
+  buffer_pool_manager_->UnpinPage(leaf_page_id, false);
   return false;
 }
 
@@ -232,7 +232,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
     transaction->AddIntoPageSet(page);
   } else {  // find the leaf Node that should contain "key"
     root_id_latch_.unlock();
-    leaf_node = reinterpret_cast<LeafPage*>(GetLeafPage(key, transaction, OpType::INSERT)->GetData()); 
+    leaf_node = reinterpret_cast<LeafPage *>(GetLeafPage(key, transaction, OpType::INSERT)->GetData());
     leaf_page_id = leaf_node->GetPageId();
   }
 
@@ -350,7 +350,7 @@ void BPLUSTREE_TYPE::InsertInParent(BPlusTreePage *left_node, BPlusTreePage *rig
   // auto *parent_node = reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(parent_id)->GetData());
   // 从transaction 中获得parent_node
   page = ptr->back();  // 现在page指向父亲节点在buffer中frame
-  InternalPage *parent_node = reinterpret_cast<InternalPage *>(page->GetData());
+  auto *parent_node = reinterpret_cast<InternalPage *>(page->GetData());
   page_id_t parent_id = parent_node->GetPageId();
   int size = parent_node->GetSize();
   int maxsize = parent_node->GetMaxSize();
@@ -466,11 +466,11 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
     root_id_latch_.unlock();
     return;
   }
-  //std::cout << "before call GetLeafpage " << std::endl;
+  // std::cout << "before call GetLeafpage " << std::endl;
   root_id_latch_.unlock();
   auto *node = reinterpret_cast<BPlusTreePage *>(GetLeafPage(key, transaction, OpType::DELETE)->GetData());
   // 在调用 DeleteEnty时，transaction的pageset中保存，叶子节点以及祖先节点在buffer中frame
-  //std::cout << "pageset size " << transaction->GetPageSet()->size() << std::endl;
+  // std::cout << "pageset size " << transaction->GetPageSet()->size() << std::endl;
   DeleteEntry(node, key, transaction);
 }
 
@@ -588,6 +588,7 @@ void BPLUSTREE_TYPE::DeleteEntry(BPlusTreePage *node, const KeyType &key, Transa
     }
   }
 
+  // ******** 可能存在一些祖先节点处于加锁并且unpin的状态，导致 FetchPage返回nullptr ************************
   Page *sibling_page = buffer_pool_manager_->FetchPage(sibling_node_id);
   sibling_page->WLatch();  // 相邻节点上锁
   auto *sibling_node = reinterpret_cast<BPlusTreePage *>(sibling_page->GetData());
@@ -837,9 +838,9 @@ auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE {
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Begin(const KeyType &key) -> INDEXITERATOR_TYPE {
-  Page* page = GetLeafPage(key);
-  LeafPage *leafpage = reinterpret_cast<LeafPage*>(page->GetData());  // 找到key所在的叶子节点
-  int size = leafpage->GetSize();         // 获得叶子节点信息
+  Page *page = GetLeafPage(key);
+  auto *leafpage = reinterpret_cast<LeafPage *>(page->GetData());  // 找到key所在的叶子节点
+  int size = leafpage->GetSize();                                  // 获得叶子节点信息
   page_id_t page_id = leafpage->GetPageId();
   page_id_t next_id = leafpage->GetNextPageId();
   for (int i = 0; i < size; ++i) {

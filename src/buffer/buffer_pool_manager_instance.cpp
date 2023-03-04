@@ -86,7 +86,7 @@ auto BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) -> Page * {
   }
 
   if (!GetFrameId(&frame_id)) {
-    // std::cout << GREEEN << "fetch return nullptr" << END << std::endl;
+    // std::cout << GREEN << "fetch return nullptr" << END << std::endl;
     return nullptr;
   }
   // pages_[frame_id].ResetMemory();  // 设置初始内容
