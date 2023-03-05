@@ -16,8 +16,8 @@ BPLUSTREE_TYPE::BPlusTree(std::string name, BufferPoolManager *buffer_pool_manag
       comparator_(comparator),
       leaf_max_size_(leaf_max_size),
       internal_max_size_(internal_max_size) {
-  std::cout << "buffer pool size is " << buffer_pool_manager_->GetPoolSize() << std::endl;
-  std::cout << leaf_max_size_ << " " << internal_max_size_ << std::endl;
+  // std::cout << "buffer pool size is " << buffer_pool_manager_->GetPoolSize() << std::endl;
+  // std::cout << leaf_max_size_ << " " << internal_max_size_ << std::endl;
 }
 
 /*
@@ -56,11 +56,6 @@ INDEX_TEMPLATE_ARGUMENTS  // release ancestor page latch
   Page *page;
   BPlusTreePage *tree_node;
   Page *virtual_page = reinterpret_cast<Page *>(&root_page_id_);
-  // page = ptr->front();
-  // tree_node = reinterpret_cast<BPlusTreePage*>(page->GetData());
-  // if (tree_node->IsRootPage()) {
-  //   root_id_latch_.unlock();
-  // }  // 将root_id_latch_当做root_page_的父亲，root_page_可以安全释放，root_id_latch_可以unlock()
   while (ptr->size() > remain) {
     page = ptr->front();
     ptr->pop_front();  // 出队
