@@ -114,7 +114,7 @@ class BPlusTree {
    * @param type 根据操作类型决定是解读锁还是写锁
    * @param remain remain为1，表示保留最后一个，remain为0：unlatch pageset中所有page
    */
-  void ReleasePageLatch(Transaction *transaction, OpType type, size_t remain);
+  void ReleasePageLatch(Transaction *transaction, OpType type);
 
   // return the page id of the root node
   auto GetRootPageId() -> page_id_t;

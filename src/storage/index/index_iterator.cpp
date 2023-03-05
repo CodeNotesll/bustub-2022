@@ -27,8 +27,11 @@ auto INDEXITERATOR_TYPE::IsEnd() -> bool { return leaf_id_ == INVALID_PAGE_ID; }
 
 INDEX_TEMPLATE_ARGUMENTS
 auto INDEXITERATOR_TYPE::operator*() -> const MappingType & {
-  auto *leafpage = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(buffer_pool_manager_->FetchPage(leaf_id_)->GetData());
-  const MappingType &ret = leafpage->At(index_);
+  Page *page = buffer_pool_manager_->FetchPage(leaf_id_);
+  page->RLatch();
+  auto *leaf_node = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(page->GetData());
+  const MappingType &ret = leaf_node->At(index_);
+  page->RUnlatch();
   buffer_pool_manager_->UnpinPage(leaf_id_, false);  // 返回引用 这里提前换出了，如何处理。。。。
   return ret;
 }
@@ -40,11 +43,13 @@ auto INDEXITERATOR_TYPE::operator++() -> INDEXITERATOR_TYPE & {
     leaf_id_ = next_id_;
     // 取出下一节点，获取size_
     if (leaf_id_ != INVALID_PAGE_ID) {
-      auto *leafpage =
-          reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(buffer_pool_manager_->FetchPage(leaf_id_)->GetData());
+      Page *page = buffer_pool_manager_->FetchPage(leaf_id_);
+      page->RLatch();  // 这里上锁失败即报错 **********************
+      auto *leafpage = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(page->GetData());
       size_ = leafpage->GetSize();
       next_id_ = leafpage->GetNextPageId();
       index_ = 0;
+      page->RUnlatch();
       buffer_pool_manager_->UnpinPage(leaf_id_, false);
     } else {
       buffer_pool_manager_ = nullptr;

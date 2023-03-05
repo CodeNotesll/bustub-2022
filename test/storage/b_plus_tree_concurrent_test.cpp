@@ -9,7 +9,7 @@
 // Copyright (c) 2015-2021, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
-
+/*
 #include <chrono>  // NOLINT
 #include <cstdio>
 #include <functional>
@@ -334,8 +334,9 @@ TEST(BPlusTreeConcurrentTest, MixTest) {
 }
 
 }  // namespace bustub
+*/
 /************* 另一份测试案例*******************/
-/*
+
 #include <chrono>  // NOLINT
 #include <cstdio>
 #include <functional>
@@ -351,7 +352,7 @@ TEST(BPlusTreeConcurrentTest, MixTest) {
 #define TEST_TIMEOUT_BEGIN                           \
   std::promise<bool> promisedFinished;               \
   auto futureResult = promisedFinished.get_future(); \
-                              std::thread([](std::promise<bool>& finished) {
+                                 std::thread([](std::promise<bool>& finished) {
 #define TEST_TIMEOUT_FAIL_END(X)                                                                  \
   finished.set_value(true);                                                                       \
   }, std::ref(promisedFinished)).detach();                                                        \
@@ -922,7 +923,6 @@ void MixTest4Call() {
   }
 }
 
-
 TEST(BPlusTreeTestC2Con, InsertTest1) {
   TEST_TIMEOUT_BEGIN
   InsertTest1Call();
@@ -939,8 +939,6 @@ TEST(BPlusTreeTestC2Con, InsertTest2) {
   TEST_TIMEOUT_FAIL_END(1000 * 600)
 }
 
-
-
 TEST(BPlusTreeTestC2Con, DeleteTest1) {
   TEST_TIMEOUT_BEGIN
   DeleteTest1Call();
@@ -948,7 +946,6 @@ TEST(BPlusTreeTestC2Con, DeleteTest1) {
   remove("test.log");
   TEST_TIMEOUT_FAIL_END(1000 * 600)
 }
-
 
 TEST(BPlusTreeTestC2Con, DeleteTest2) {
   TEST_TIMEOUT_BEGIN
@@ -991,4 +988,3 @@ TEST(BPlusTreeTestC2Con, MixTest4) {
 }
 
 }  // namespace bustub
-*/
