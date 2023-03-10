@@ -122,15 +122,7 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
       }
     }
     num_buckets_++;
-    // for (size_t i = 0; i < dir_.size(); ++i) {
-    //   if (dir_[i] == p) {
-    //     if ((i & mask) != 0) {
-    //       dir_[i] = one_bucket;
-    //     } else {
-    //       dir_[i] = zero_bucket;
-    //     }
-    //   }
-    // }
+
     size_t increment = 1 << new_bucket->GetDepth();
     while (new_bucket_id < dir_.size()) {
       dir_[new_bucket_id] = new_bucket;
