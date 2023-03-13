@@ -50,5 +50,7 @@ class SeqScanExecutor : public AbstractExecutor {
  private:
   /** The sequential scan plan node to be executed */
   const SeqScanPlanNode *plan_;
+  TableIterator table_iterator_;
+  TableHeap *heap_;
 };
 }  // namespace bustub

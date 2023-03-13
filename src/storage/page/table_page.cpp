@@ -316,7 +316,7 @@ auto TablePage::GetTuple(const RID &rid, Tuple *tuple, Transaction *txn, LockMan
   // At this point, we have at least a shared lock on the RID. Copy the tuple data into our result.
   uint32_t tuple_offset = GetTupleOffsetAtSlot(slot_num);
   tuple->size_ = tuple_size;
-  if (tuple->allocated_) {
+  if (tuple->allocated_) {  // 回收tuple中分配的data
     delete[] tuple->data_;
   }
   tuple->data_ = new char[tuple->size_];
