@@ -57,7 +57,7 @@ auto TableHeap::InsertTuple(const Tuple &tuple, RID *rid, Transaction *txn) -> b
     // If the next page is a valid page,
     if (next_page_id != INVALID_PAGE_ID) {
       auto next_page = static_cast<TablePage *>(buffer_pool_manager_->FetchPage(next_page_id));
-      next_page->WLatch();     // 下一页先加锁
+      next_page->WLatch();  // 下一页先加锁
       // Unlatch and unpin the current page.
       cur_page->WUnlatch();
       buffer_pool_manager_->UnpinPage(cur_page->GetTablePageId(), false);

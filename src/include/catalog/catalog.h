@@ -193,25 +193,31 @@ class Catalog {
    * @param table_name The name of the table
    * @param schema The schema of the table
    * @param key_schema The schema of the key
-   * @param key_attrs Key attributes
+   * @param key_attrs Key attributes, 是建立key的attribute下标
    * @param keysize Size of the key
    * @param hash_function The hash function for the index
    * @return A (non-owning) pointer to the metadata of the new table
    */
+  // 为"table_name"创建一个index,名字为index_name
   template <class KeyType, class ValueType, class KeyComparator>
   auto CreateIndex(Transaction *txn, const std::string &index_name, const std::string &table_name, const Schema &schema,
                    const Schema &key_schema, const std::vector<uint32_t> &key_attrs, std::size_t keysize,
                    HashFunction<KeyType> hash_function) -> IndexInfo * {
     // Reject the creation request for nonexistent table
-    if (table_names_.find(table_name) == table_names_.end()) {
+    //使用Gettable(table_name)的方法查错
+    auto table_oid = table_names_.find(table_name);
+    if (table_oid == table_names_.end()) {
+      // Table not found
       return NULL_INDEX_INFO;
     }
+
+    BUSTUB_ASSERT(tables_.find(table_oid->second) != tables_.end(), "Broken Invariant");
 
     // If the table exists, an entry for the table should already be present in index_names_
     BUSTUB_ASSERT((index_names_.find(table_name) != index_names_.end()), "Broken Invariant");
 
     // Determine if the requested index already exists for this table
-    auto &table_indexes = index_names_.find(table_name)->second;
+    auto &table_indexes = index_names_.find(table_name)->second;  // 引用类型
     if (table_indexes.find(index_name) != table_indexes.end()) {
       // The requested index already exists for this table
       return NULL_INDEX_INFO;
