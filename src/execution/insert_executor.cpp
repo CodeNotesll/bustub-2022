@@ -36,23 +36,23 @@ auto InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
   while (child_executor_->Next(&t, &r)) {
     vec.push_back(t);
   }
-  if (vec.empty() && has_output_) { // 孩子节点没有向上返回要删除的tuple，并且之前已经有了输出
+  if (vec.empty() && has_output_) {  // 孩子节点没有向上返回要删除的tuple，并且之前已经有了输出
     return false;
   }
   int64_t n = vec.size();
-  Value v(TypeId::BIGINT,n);
-  for(int64_t i = 0; i < n; ++i) {
+  Value v(TypeId::BIGINT, n);
+  for (int64_t i = 0; i < n; ++i) {
     heap_->InsertTuple(vec[i], &r, exec_ctx_->GetTransaction());
     for (const auto &index : index_info_) {
-      const auto& key_attrs = index->index_->GetMetadata()->GetKeyAttrs();
-      const auto& schema = table_info_->schema_;
-      const auto& key_schema = index->key_schema_;
+      const auto &key_attrs = index->index_->GetMetadata()->GetKeyAttrs();
+      const auto &schema = table_info_->schema_;
+      const auto &key_schema = index->key_schema_;
       index->index_->InsertEntry(vec[i].KeyFromTuple(schema, key_schema, key_attrs), r, exec_ctx_->GetTransaction());
     }
   }
   char storage[BUSTUB_PAGE_SIZE];
-  *reinterpret_cast<uint32_t*>(storage) = sizeof(v);
-  v.SerializeTo(storage+sizeof(uint32_t));
+  *reinterpret_cast<uint32_t *>(storage) = sizeof(v);
+  v.SerializeTo(storage + sizeof(uint32_t));
   t.DeserializeFrom(storage);
   *tuple = t;
   has_output_ = true;

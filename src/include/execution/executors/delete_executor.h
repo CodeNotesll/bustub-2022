@@ -62,7 +62,7 @@ class DeleteExecutor : public AbstractExecutor {
   std::unique_ptr<AbstractExecutor> child_executor_;
   TableHeap *heap_;
   std::vector<IndexInfo *> index_info_;
-  TableInfo* table_info_;
+  TableInfo *table_info_;
   bool has_output_{false};
 };
 }  // namespace bustub

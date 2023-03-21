@@ -205,7 +205,7 @@ Value::Value(TypeId type, float f) : Value(type) {
       value_.decimal_ = f;
       size_.len_ = (value_.decimal_ == BUSTUB_DECIMAL_NULL ? BUSTUB_VALUE_NULL : 0);
       break;
-    default:
+    default:  // 传入其他不兼容类型
       throw Exception(ExceptionType::INCOMPATIBLE_TYPE, "Invalid Type for float value constructor");
   }
 }
@@ -218,7 +218,7 @@ Value::Value(TypeId type, const char *data, uint32_t len, bool manage_data) : Va
         value_.varlen_ = nullptr;
         size_.len_ = BUSTUB_VALUE_NULL;
       } else {
-        manage_data_ = manage_data;
+        manage_data_ = manage_data;  // manage_data_针对VARCHAR类型
         if (manage_data_) {
           assert(len < BUSTUB_VARCHAR_MAX_LEN);
           value_.varlen_ = new char[len];

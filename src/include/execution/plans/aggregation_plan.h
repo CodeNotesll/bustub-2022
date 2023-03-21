@@ -49,7 +49,9 @@ class AggregationPlanNode : public AbstractPlanNode {
       : AbstractPlanNode(std::move(output_schema), {std::move(child)}),
         group_bys_(std::move(group_bys)),
         aggregates_(std::move(aggregates)),
-        agg_types_(std::move(agg_types)) {}
+        agg_types_(std::move(agg_types)) {
+    BUSTUB_ENSURE(agg_types_.size() == aggregates_.size(), "agg_types_.size() should be eqaul to aggregates_.size()")
+  }
 
   /** @return The type of the plan node */
   auto GetType() const -> PlanType override { return PlanType::Aggregation; }

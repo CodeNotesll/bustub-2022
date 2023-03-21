@@ -45,7 +45,7 @@ class SimpleAggregationHashTable {
   /** @return The initial aggregrate value for this aggregation executor */
   auto GenerateInitialAggregateValue() -> AggregateValue {
     std::vector<Value> values{};
-    for (const auto &agg_type : agg_types_) {
+    for (const auto &agg_type : agg_types_) {  // 初始value的个数和agg_type相同
       switch (agg_type) {
         case AggregationType::CountStarAggregate:
           // Count start starts at zero.
@@ -74,10 +74,45 @@ class SimpleAggregationHashTable {
     for (uint32_t i = 0; i < agg_exprs_.size(); i++) {
       switch (agg_types_[i]) {
         case AggregationType::CountStarAggregate:
+          result->aggregates_[i] = result->aggregates_[i].Add(Value(result->aggregates_[i].GetTypeId(), 1));
+          break;
+
         case AggregationType::CountAggregate:
+          if (!input.aggregates_[i].IsNull()) {
+            if (result->aggregates_[i].IsNull()) {
+              result->aggregates_[i] = Value(result->aggregates_[i].GetTypeId(), 1);
+            } else {
+              result->aggregates_[i] = result->aggregates_[i].Add(Value(result->aggregates_[i].GetTypeId(), 1));
+            }
+          }
+          break;
+
         case AggregationType::SumAggregate:
+          if (!input.aggregates_[i].IsNull()) {
+            if (result->aggregates_[i].IsNull()) {
+              result->aggregates_[i] = input.aggregates_[i];
+            } else {
+              result->aggregates_[i] = result->aggregates_[i].Add(input.aggregates_[i]);
+            }
+          }
+          break;
         case AggregationType::MinAggregate:
+          if (!input.aggregates_[i].IsNull()) {
+            if (result->aggregates_[i].IsNull()) {
+              result->aggregates_[i] = input.aggregates_[i];
+            } else {
+              result->aggregates_[i] = result->aggregates_[i].Min(input.aggregates_[i]);
+            }
+          }
+          break;
         case AggregationType::MaxAggregate:
+          if (!input.aggregates_[i].IsNull()) {
+            if (result->aggregates_[i].IsNull()) {
+              result->aggregates_[i] = input.aggregates_[i];
+            } else {
+              result->aggregates_[i] = result->aggregates_[i].Max(input.aggregates_[i]);
+            }
+          }
           break;
       }
     }
@@ -87,7 +122,7 @@ class SimpleAggregationHashTable {
    * Inserts a value into the hash table and then combines it with the current aggregation.
    * @param agg_key the key to be inserted
    * @param agg_val the value to be inserted
-   */
+   */ // 每个组对应一些value
   void InsertCombine(const AggregateKey &agg_key, const AggregateValue &agg_val) {
     if (ht_.count(agg_key) == 0) {
       ht_.insert({agg_key, GenerateInitialAggregateValue()});
@@ -95,6 +130,7 @@ class SimpleAggregationHashTable {
     CombineAggregateValues(&ht_[agg_key], agg_val);
   }
 
+  auto Size() -> size_t { return ht_.size(); }
   /**
    * Clear the hash table
    */
@@ -180,7 +216,7 @@ class AggregationExecutor : public AbstractExecutor {
   /** @return The tuple as an AggregateKey */
   auto MakeAggregateKey(const Tuple *tuple) -> AggregateKey {
     std::vector<Value> keys;
-    for (const auto &expr : plan_->GetGroupBys()) {
+    for (const auto &expr : plan_->GetGroupBys()) {  // 如果没有groupBys，所有tuple都分在同一组内
       keys.emplace_back(expr->Evaluate(tuple, child_->GetOutputSchema()));
     }
     return {keys};
@@ -201,8 +237,14 @@ class AggregationExecutor : public AbstractExecutor {
   /** The child executor that produces tuples over which the aggregation is computed */
   std::unique_ptr<AbstractExecutor> child_;
   /** Simple aggregation hash table */
-  // TODO(Student): Uncomment SimpleAggregationHashTable aht_;
+  // TODO(Student): Uncomment
+  SimpleAggregationHashTable aht_;
   /** Simple aggregation hash table iterator */
-  // TODO(Student): Uncomment SimpleAggregationHashTable::Iterator aht_iterator_;
+  // TODO(Student): Uncomment
+  SimpleAggregationHashTable::Iterator aht_iterator_;
+
+  bool has_output_{false};
+
+  Schema schema_;
 };
 }  // namespace bustub
