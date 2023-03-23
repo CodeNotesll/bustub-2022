@@ -15,6 +15,7 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <unordered_set>
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/nested_loop_join_plan.h"
@@ -69,6 +70,8 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
   size_t right_col_size_;  // number of values in right tuple
   const Schema &left_schema_;
   const Schema &right_schema_;
+
+  std::unordered_set<size_t> left_idx_emittd_;
 };
 
 }  // namespace bustub
