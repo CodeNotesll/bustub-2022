@@ -14,11 +14,12 @@
 
 #include <memory>
 #include <utility>
-
+#include <vector>
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/nested_loop_join_plan.h"
 #include "storage/table/tuple.h"
+#include "type/value_factory.h"
 
 namespace bustub {
 
@@ -55,6 +56,19 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
  private:
   /** The NestedLoopJoin plan node to be executed. */
   const NestedLoopJoinPlanNode *plan_;
+
+  std::unique_ptr<AbstractExecutor> left_executor_;
+  std::unique_ptr<AbstractExecutor> right_executor_;
+
+  std::vector<Tuple> left_tuples_;
+  std::vector<Tuple> right_tuples_;
+  std::vector<Value> null_values_;
+  size_t left_idx_{0};     // 想要join的left_tuple_ index
+  size_t right_idx_{0};    // 对join的left_tuple_ 查询right_tuple_的index
+  size_t left_col_size_;   // number of values in left tuple
+  size_t right_col_size_;  // number of values in right tuple
+  const Schema &left_schema_;
+  const Schema &right_schema_;
 };
 
 }  // namespace bustub

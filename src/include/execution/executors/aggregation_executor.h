@@ -245,6 +245,6 @@ class AggregationExecutor : public AbstractExecutor {
 
   bool has_output_{false};
 
-  Schema schema_;
+  Schema schema_;  // 输出结果的schema 直接调用plan_->Getoutputschema() 获得, 不用构造
 };
 }  // namespace bustub

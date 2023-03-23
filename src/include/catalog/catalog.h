@@ -204,7 +204,7 @@ class Catalog {
                    const Schema &key_schema, const std::vector<uint32_t> &key_attrs, std::size_t keysize,
                    HashFunction<KeyType> hash_function) -> IndexInfo * {
     // Reject the creation request for nonexistent table
-    //使用Gettable(table_name)的方法查错
+    // 使用Gettable(table_name)的方法查错
     auto table_oid = table_names_.find(table_name);
     if (table_oid == table_names_.end()) {
       // Table not found

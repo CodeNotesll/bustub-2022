@@ -30,7 +30,7 @@ void AggregationExecutor::Init() {
   child_->Init();
   Tuple tuple;
   RID rid;
-  while (child_->Next(&tuple, &rid)) {   // 考虑空表
+  while (child_->Next(&tuple, &rid)) {  // 考虑空表
     aht_.InsertCombine(MakeAggregateKey(&tuple), MakeAggregateValue(&tuple));
   }
   aht_iterator_ = aht_.Begin();
@@ -41,15 +41,15 @@ auto AggregationExecutor::Next(Tuple *tuple, RID *rid) -> bool {
     return false;
   }
   std::vector<Value> values;
-  if (aht_iterator_ == aht_.End()) { // 空表
+  if (aht_iterator_ == aht_.End()) {  // 空表
     if (!plan_->GetGroupBys().empty()) {
-        return false;
+      return false;
     }
-    for(const auto& a : plan_->GetGroupBys()) {
-        values.emplace_back(ValueFactory::GetNullValueByType(a->GetReturnType()));
+    for (const auto &a : plan_->GetGroupBys()) {
+      values.emplace_back(ValueFactory::GetNullValueByType(a->GetReturnType()));
     }
-    for(const auto& a : aht_.GenerateInitialAggregateValue().aggregates_) {
-        values.emplace_back(a);
+    for (const auto &a : aht_.GenerateInitialAggregateValue().aggregates_) {
+      values.emplace_back(a);
     }
   } else {
     for (const auto &a : aht_iterator_.Key().group_bys_) {
@@ -59,7 +59,7 @@ auto AggregationExecutor::Next(Tuple *tuple, RID *rid) -> bool {
       values.emplace_back(a);
     }
   }
-  Tuple t(values, &schema_);
+  Tuple t(values, &(plan_->OutputSchema()));
   *tuple = t;
   if (aht_iterator_ != aht_.End()) {
     ++aht_iterator_;

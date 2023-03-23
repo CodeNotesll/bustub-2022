@@ -26,7 +26,7 @@ void DeleteExecutor::Init() {
   table_info_ = exec_ctx_->GetCatalog()->GetTable(table_id);
   heap_ = table_info_->table_.get();
   std::string table_name = table_info_->name_;
-  index_info_ = exec_ctx_->GetCatalog()->GetTableIndexes(table_name);  //这张表所有的index
+  index_info_ = exec_ctx_->GetCatalog()->GetTableIndexes(table_name);  // 这张表所有的index
 }
 
 auto DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
