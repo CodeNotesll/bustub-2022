@@ -25,8 +25,8 @@ NestedLoopJoinExecutor::NestedLoopJoinExecutor(ExecutorContext *exec_ctx, const 
       plan_(plan),
       left_executor_(std::move(left_executor)),
       right_executor_(std::move(right_executor)),
-      //left_schema_(plan_->GetLeftPlan()->OutputSchema()),
-      //right_schema_(plan_->GetRightPlan()->OutputSchema()) {  // 同样可以
+      // left_schema_(plan_->GetLeftPlan()->OutputSchema()),
+      // right_schema_(plan_->GetRightPlan()->OutputSchema()) {  // 同样可以
       left_schema_(left_executor_->GetOutputSchema()),
       right_schema_(right_executor_->GetOutputSchema()) {
   if (!(plan->GetJoinType() == JoinType::LEFT || plan->GetJoinType() == JoinType::INNER)) {
@@ -71,17 +71,17 @@ auto NestedLoopJoinExecutor::Next(Tuple *tuple, RID *rid) -> bool {
           values.push_back(right_tuples_[right_idx_].GetValue(&right_schema_, i));
         }
         left_idx_emittd_.insert(left_idx_);
-        right_idx_++;                              // 下一个right_tuple_
+        right_idx_++;  // 下一个right_tuple_
         *tuple = Tuple(values, &plan_->OutputSchema());
         return true;
       }
-      right_idx_++;                              // 下一个right_tuple_
+      right_idx_++;  // 下一个right_tuple_
     }
 
-    right_idx_ = 0;                              // 下一个left_tuple_从头开始查找
+    right_idx_ = 0;  // 下一个left_tuple_从头开始查找
 
     if (plan_->GetJoinType() == JoinType::LEFT && left_idx_emittd_.count(left_idx_) == 0) {  // left join没有找到match
-      for (size_t i = 0; i < left_col_size_; ++i) {  // 左边tuple
+      for (size_t i = 0; i < left_col_size_; ++i) {                                          // 左边tuple
         values.push_back(left_tuples_[left_idx_].GetValue(&left_schema_, i));
       }
 

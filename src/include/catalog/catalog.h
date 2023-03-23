@@ -125,7 +125,7 @@ class Catalog {
    */
   auto CreateTable(Transaction *txn, const std::string &table_name, const Schema &schema, bool create_table_heap = true)
       -> TableInfo * {
-    if (table_names_.count(table_name) != 0) {
+    if (table_names_.count(table_name) != 0) {  // 该表已经存在
       return NULL_TABLE_INFO;
     }
 
@@ -144,13 +144,13 @@ class Catalog {
 
     // Construct the table information
     auto meta = std::make_unique<TableInfo>(schema, table_name, std::move(table), table_oid);
-    auto *tmp = meta.get();
+    auto *tmp = meta.get();  // table_info
 
     // Update the internal tracking mechanisms
     tables_.emplace(table_oid, std::move(meta));
-    table_names_.emplace(table_name, table_oid);
+    table_names_.emplace(table_name, table_oid);  // 保存table 信息
     index_names_.emplace(table_name, std::unordered_map<std::string, index_oid_t>{});
-
+    // 为新建的表创建空的index_信息
     return tmp;
   }
 
@@ -191,18 +191,18 @@ class Catalog {
    * @param txn The transaction in which the table is being created
    * @param index_name The name of the new index
    * @param table_name The name of the table
-   * @param schema The schema of the table
+   * @param table_schema The schema of the table
    * @param key_schema The schema of the key
-   * @param key_attrs Key attributes, 是建立key的attribute下标
+   * @param key_attrs Key attributes, ******** 是建立key的attribute下标****************
    * @param keysize Size of the key
    * @param hash_function The hash function for the index
    * @return A (non-owning) pointer to the metadata of the new table
    */
   // 为"table_name"创建一个index,名字为index_name
   template <class KeyType, class ValueType, class KeyComparator>
-  auto CreateIndex(Transaction *txn, const std::string &index_name, const std::string &table_name, const Schema &schema,
-                   const Schema &key_schema, const std::vector<uint32_t> &key_attrs, std::size_t keysize,
-                   HashFunction<KeyType> hash_function) -> IndexInfo * {
+  auto CreateIndex(Transaction *txn, const std::string &index_name, const std::string &table_name,
+                   const Schema &table_schema, const Schema &key_schema, const std::vector<uint32_t> &key_attrs,
+                   std::size_t keysize, HashFunction<KeyType> hash_function) -> IndexInfo * {
     // Reject the creation request for nonexistent table
     // 使用Gettable(table_name)的方法查错
     auto table_oid = table_names_.find(table_name);
@@ -214,17 +214,17 @@ class Catalog {
     BUSTUB_ASSERT(tables_.find(table_oid->second) != tables_.end(), "Broken Invariant");
 
     // If the table exists, an entry for the table should already be present in index_names_
-    BUSTUB_ASSERT((index_names_.find(table_name) != index_names_.end()), "Broken Invariant");
+    BUSTUB_ASSERT((index_names_.find(table_name) != index_names_.end()), "Broken Invariant");  // 查看CreateTable() 可知
 
     // Determine if the requested index already exists for this table
-    auto &table_indexes = index_names_.find(table_name)->second;  // 引用类型
+    auto &table_indexes = index_names_.find(table_name)->second;  // 引用类型，index_name-->index_oid
     if (table_indexes.find(index_name) != table_indexes.end()) {
       // The requested index already exists for this table
       return NULL_INDEX_INFO;
     }
 
     // Construct index metdata
-    auto meta = std::make_unique<IndexMetadata>(index_name, table_name, &schema, key_attrs);
+    auto meta = std::make_unique<IndexMetadata>(index_name, table_name, &table_schema, key_attrs);
 
     // Construct the index, take ownership of metadata
     // TODO(Kyle): We should update the API for CreateIndex
@@ -235,10 +235,10 @@ class Catalog {
     auto index = std::make_unique<BPlusTreeIndex<KeyType, ValueType, KeyComparator>>(std::move(meta), bpm_);
 
     // Populate the index with all tuples in table heap
-    auto *table_meta = GetTable(table_name);
+    auto *table_meta = GetTable(table_name);  // table_info
     auto *heap = table_meta->table_.get();
     for (auto tuple = heap->Begin(txn); tuple != heap->End(); ++tuple) {
-      index->InsertEntry(tuple->KeyFromTuple(schema, key_schema, key_attrs), tuple->GetRid(), txn);
+      index->InsertEntry(tuple->KeyFromTuple(table_schema, key_schema, key_attrs), tuple->GetRid(), txn);
     }
 
     // Get the next OID for the new index
@@ -263,20 +263,20 @@ class Catalog {
    * @return A (non-owning) pointer to the metadata for the index
    */
   auto GetIndex(const std::string &index_name, const std::string &table_name) -> IndexInfo * {
-    auto table = index_names_.find(table_name);
-    if (table == index_names_.end()) {
+    auto table = index_names_.find(table_name);  // 在index_name中按照table_name查找Index信息
+    if (table == index_names_.end()) {  // 没有找到, 查看是否已经创建了名称为table_name 的table
       BUSTUB_ASSERT((table_names_.find(table_name) == table_names_.end()), "Broken Invariant");
       return NULL_INDEX_INFO;
     }
 
-    auto &table_indexes = table->second;
+    auto &table_indexes = table->second;  // std::unordered_map<string, index_oid> index_name-->index_oid
 
     auto index_meta = table_indexes.find(index_name);
     if (index_meta == table_indexes.end()) {
       return NULL_INDEX_INFO;
     }
 
-    auto index = indexes_.find(index_meta->second);
+    auto index = indexes_.find(index_meta->second);  // 按照index_oid查找 index_info
     BUSTUB_ASSERT((index != indexes_.end()), "Broken Invariant");
 
     return index->second.get();
@@ -295,7 +295,7 @@ class Catalog {
       // Table not found
       return NULL_INDEX_INFO;
     }
-
+    // 在tableInfo中获得table_name
     return GetIndex(index_name, table_meta->second->name_);
   }
 
@@ -325,20 +325,22 @@ class Catalog {
       return std::vector<IndexInfo *>{};
     }
 
-    auto table_indexes = index_names_.find(table_name);
+    auto table_indexes =
+        index_names_.find(table_name);  // 这里为什么加断言，可能表存在，没有建立index？查看CreateTable()即可
     BUSTUB_ASSERT((table_indexes != index_names_.end()), "Broken Invariant");
-
+    // table_indexes->second 即为 一张表中所有index_name, index_oid mapping
     std::vector<IndexInfo *> indexes{};
     indexes.reserve(table_indexes->second.size());
     for (const auto &index_meta : table_indexes->second) {
-      auto index = indexes_.find(index_meta.second);
+      auto index = indexes_.find(index_meta.second);  // 按照index_oid 查找 index_info
       BUSTUB_ASSERT((index != indexes_.end()), "Broken Invariant");
-      indexes.push_back(index->second.get());
+      indexes.push_back(index->second.get());  // reserve 之后使用push_back
     }
 
     return indexes;
   }
 
+  // 获得database中所有表 名称
   auto GetTableNames() -> std::vector<std::string> {
     std::vector<std::string> result;
     for (const auto &x : table_names_) {

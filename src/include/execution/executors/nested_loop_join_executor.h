@@ -13,9 +13,9 @@
 #pragma once
 
 #include <memory>
+#include <unordered_set>
 #include <utility>
 #include <vector>
-#include <unordered_set>
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/nested_loop_join_plan.h"

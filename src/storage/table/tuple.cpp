@@ -108,7 +108,7 @@ auto Tuple::KeyFromTuple(const Schema &schema, const Schema &key_schema, const s
     -> Tuple {
   std::vector<Value> values;
   values.reserve(key_attrs.size());
-  for (auto idx : key_attrs) {
+  for (auto idx : key_attrs) {  // 获得相应下标对应的value
     values.emplace_back(this->GetValue(&schema, idx));
   }
   return {values, &key_schema};

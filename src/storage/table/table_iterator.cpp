@@ -37,8 +37,8 @@ auto TableIterator::operator->() -> Tuple * {
   return tuple_;
 }
 
-auto TableIterator::operator++() -> TableIterator & {  // ++iterator_
-  BufferPoolManager *buffer_pool_manager = table_heap_->buffer_pool_manager_;
+auto TableIterator::operator++() -> TableIterator & {                          // ++iterator_
+  BufferPoolManager *buffer_pool_manager = table_heap_->buffer_pool_manager_;  // 友元直接访问private
   auto cur_page = static_cast<TablePage *>(buffer_pool_manager->FetchPage(tuple_->rid_.GetPageId()));
   BUSTUB_ENSURE(cur_page != nullptr, "BPM full");  // all pages are pinned
 
