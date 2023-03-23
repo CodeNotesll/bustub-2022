@@ -40,12 +40,12 @@ void BPLUSTREE_INDEX_TYPE::DeleteEntry(const Tuple &key, RID rid, Transaction *t
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_INDEX_TYPE::ScanKey(const Tuple &key, std::vector<RID> *result, Transaction *transaction) {
+auto BPLUSTREE_INDEX_TYPE::ScanKey(const Tuple &key, std::vector<RID> *result, Transaction *transaction) -> bool {
   // construct scan index key
   KeyType index_key;
   index_key.SetFromKey(key);
 
-  container_.GetValue(index_key, result, transaction);
+  return container_.GetValue(index_key, result, transaction);
 }
 
 INDEX_TEMPLATE_ARGUMENTS

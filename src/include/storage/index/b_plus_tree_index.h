@@ -33,7 +33,7 @@ class BPlusTreeIndex : public Index {
 
   void DeleteEntry(const Tuple &key, RID rid, Transaction *transaction) override;
 
-  void ScanKey(const Tuple &key, std::vector<RID> *result, Transaction *transaction) override;
+  auto ScanKey(const Tuple &key, std::vector<RID> *result, Transaction *transaction) -> bool override;
 
   auto GetBeginIterator() -> INDEXITERATOR_TYPE;
 

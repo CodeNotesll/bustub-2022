@@ -173,7 +173,7 @@ class Index {
    * @param result The collection of RIDs that is populated with results of the search
    * @param transaction The transaction context
    */
-  virtual void ScanKey(const Tuple &key, std::vector<RID> *result, Transaction *transaction) = 0;
+  virtual auto ScanKey(const Tuple &key, std::vector<RID> *result, Transaction *transaction) -> bool = 0;
 
  private:
   /** The Index structure owns its metadata */
