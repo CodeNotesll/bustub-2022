@@ -62,14 +62,14 @@ auto NestIndexJoinExecutor::Next(Tuple *tuple, RID *rid) -> bool {
     }
     Tuple key_tuple({val}, &(right_index_info_->key_schema_));
     std::vector<RID> result;
-    bool res = tree_->ScanKey(key_tuple, &result, exec_ctx_->GetTransaction());
+    tree_->ScanKey(key_tuple, &result, exec_ctx_->GetTransaction());
 
     std::vector<Value> values;
 
     for (size_t i = 0; i < left_column_count_; ++i) {
       values.push_back(left_tuple.GetValue(&left_schema_, i));
     }
-    if (res) {  // 存在
+    if (!result.empty()) {  // 存在
       r = result[0];
       right_heap_->GetTuple(r, &right_tuple, exec_ctx_->GetTransaction());
       for (size_t i = 0; i < right_column_count_; ++i) {

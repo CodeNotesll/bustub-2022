@@ -33,12 +33,12 @@ void HASH_TABLE_INDEX_TYPE::DeleteEntry(const Tuple &key, RID rid, Transaction *
 }
 
 template <typename KeyType, typename ValueType, typename KeyComparator>
-auto HASH_TABLE_INDEX_TYPE::ScanKey(const Tuple &key, std::vector<RID> *result, Transaction *transaction) -> bool {
+void HASH_TABLE_INDEX_TYPE::ScanKey(const Tuple &key, std::vector<RID> *result, Transaction *transaction) {
   // construct scan index key
   KeyType index_key;
   index_key.SetFromKey(key);
 
-  return container_.GetValue(transaction, index_key, result);
+  container_.GetValue(transaction, index_key, result);
 }
 template class LinearProbeHashTableIndex<GenericKey<4>, RID, GenericComparator<4>>;
 template class LinearProbeHashTableIndex<GenericKey<8>, RID, GenericComparator<8>>;
