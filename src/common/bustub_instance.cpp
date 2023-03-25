@@ -181,6 +181,7 @@ auto BustubInstance::ExecuteSql(const std::string &sql, ResultWriter &writer) ->
 }
 
 auto BustubInstance::ExecuteSqlTxn(const std::string &sql, ResultWriter &writer, Transaction *txn) -> bool {
+  // std::cout << RED << "EcecuteSqlTxn called, sql is " << sql << END << std::endl;
   if (!sql.empty() && sql[0] == '\\') {
     // Internal meta-commands, like in `psql`.
     if (sql == "\\dt") {
@@ -201,10 +202,10 @@ auto BustubInstance::ExecuteSqlTxn(const std::string &sql, ResultWriter &writer,
   bool is_successful = true;
 
   std::shared_lock<std::shared_mutex> l(catalog_lock_);
-  bustub::Binder binder(*catalog_);
+  bustub::Binder binder(*catalog_);       // ******* Binder ************ // 
   binder.ParseAndSave(sql);
   l.unlock();
-
+  // std::cout << RED << "binder.statement_node_ size is " << binder.statement_nodes_.size() << END << std::endl;
   for (auto *stmt : binder.statement_nodes_) {
     auto statement = binder.BindStatement(stmt);
     switch (statement->type_) {
