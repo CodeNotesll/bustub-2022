@@ -11,11 +11,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "execution/executors/seq_scan_executor.h"
+#include "common/rid.h"
+#include "storage/table/table_iterator.h"
 
 namespace bustub {
 
 SeqScanExecutor::SeqScanExecutor(ExecutorContext *exec_ctx, const SeqScanPlanNode *plan)
-    : AbstractExecutor(exec_ctx), plan_(plan) {}
+    : AbstractExecutor(exec_ctx), plan_(plan), table_iterator_(nullptr, RID{}, nullptr) {}
 
 void SeqScanExecutor::Init() {
   table_oid_t table_id = plan_->GetTableOid();

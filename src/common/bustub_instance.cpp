@@ -202,7 +202,7 @@ auto BustubInstance::ExecuteSqlTxn(const std::string &sql, ResultWriter &writer,
   bool is_successful = true;
 
   std::shared_lock<std::shared_mutex> l(catalog_lock_);
-  bustub::Binder binder(*catalog_);       // ******* Binder ************ // 
+  bustub::Binder binder(*catalog_);  // ******* Binder ************ //
   binder.ParseAndSave(sql);
   l.unlock();
   // std::cout << RED << "binder.statement_node_ size is " << binder.statement_nodes_.size() << END << std::endl;

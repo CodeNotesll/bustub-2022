@@ -9,24 +9,24 @@
 namespace bustub {
 
 auto Optimizer::OptimizeCustom(const AbstractPlanNodeRef &plan) -> AbstractPlanNodeRef {
-  //std::cout << "OPtimizeCustom called" << std::endl;
+  // std::cout << "OPtimizeCustom called" << std::endl;
   auto p = plan;
   p = OptimizeMergeProjection(p);
-  //std::cout << "After MergerProjection : \n";
-  // std::cout << GREEN << p->ToString() << END << "\n";
+  // std::cout << "After MergerProjection : \n";
+  //  std::cout << GREEN << p->ToString() << END << "\n";
   p = OptimizeMergeFilterNLJ(p);
-  //std::cout << "After MergerFilter : \n";
-  //  std::cout << GREEN << p->ToString() << END << "\n";
+  // std::cout << "After MergerFilter : \n";
+  //   std::cout << GREEN << p->ToString() << END << "\n";
   p = OptimizeNLJAsIndexJoin(p);
-  //std::cout << "After IndexJoin : \n";
-  //  std::cout << GREEN << p->ToString() << END << "\n";
-  // p = OptimizeNLJAsHashJoin(p);  // Enable this rule after you have implemented hash join.
+  // std::cout << "After IndexJoin : \n";
+  //   std::cout << GREEN << p->ToString() << END << "\n";
+  //  p = OptimizeNLJAsHashJoin(p);  // Enable this rule after you have implemented hash join.
   p = OptimizeOrderByAsIndexScan(p);
-  //std::cout << "After IndexScan : \n";
-  // std::cout << GREEN << p->ToString() << END << "\n";
-  p = OptimizeSortLimitAsTopN(p);
-  //std::cout << "After TopN : \n";
+  // std::cout << "After IndexScan : \n";
   //  std::cout << GREEN << p->ToString() << END << "\n";
+  p = OptimizeSortLimitAsTopN(p);
+  // std::cout << "After TopN : \n";
+  //   std::cout << GREEN << p->ToString() << END << "\n";
   return p;
 }
 
