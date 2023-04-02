@@ -12,6 +12,7 @@
 
 #include "concurrency/lock_manager.h"
 #include <cassert>
+#include <iterator>
 #include <memory>
 #include <stdexcept>
 
@@ -172,6 +173,7 @@ void LockManager::UpdateTableLockSet(Transaction *txn, table_oid_t oid, LockMode
     }
   }
 }
+
 auto LockManager::LockModeCompatible(LockMode left, LockMode right) -> bool {
   switch (left) {
     case LockMode::SHARED:
@@ -299,6 +301,7 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
   }
   return true;
 }
+
 void LockManager::UpdateTxnState(Transaction *txn, LockMode lock_mode) {
   if (lock_mode != LockMode::EXCLUSIVE && lock_mode != LockMode::SHARED) {
     return;
@@ -340,15 +343,7 @@ auto LockManager::UnlockTable(Transaction *txn, const table_oid_t &oid) -> bool 
   auto s_row_lock_set = txn->GetSharedRowLockSet();
   auto x_row_lock_set = txn->GetExclusiveRowLockSet();
   // 检查 txn是否持有table中row的锁， 记得x_row_lock_set->erase();
-  if (x_row_lock_set->find(oid) != x_row_lock_set->end()) {
-    std::cout << "x_row_lock_set" << std::endl;
-    std::cout << RED << "unlocktable: TABLE_UNLOCKED_BEFORE_UNLOCKING_ROWS " << END << std::endl; 
-    txn->SetState(TransactionState::ABORTED);
-    throw bustub::TransactionAbortException(txn_id, AbortReason::TABLE_UNLOCKED_BEFORE_UNLOCKING_ROWS);
-  }
-  if (s_row_lock_set->find(oid) != s_row_lock_set->end()) {
-    std::cout << "s_row_lock_set" << std::endl;
-    std::cout << RED << "unlocktable: TABLE_UNLOCKED_BEFORE_UNLOCKING_ROWS " << END << std::endl; 
+  if (!(*s_row_lock_set)[oid].empty() || !(*x_row_lock_set)[oid].empty()) {
     txn->SetState(TransactionState::ABORTED);
     throw bustub::TransactionAbortException(txn_id, AbortReason::TABLE_UNLOCKED_BEFORE_UNLOCKING_ROWS);
   }
@@ -400,7 +395,6 @@ void LockManager::UpdateRowLockSet(Transaction *txn, table_oid_t oid, RID rid, L
         exclusive_lock_set->insert(rid);
         (*x_row_lock_set)[oid].insert(rid);
       } else {
-
         assert(exclusive_lock_set->find(rid) != exclusive_lock_set->end());
         exclusive_lock_set->erase(rid);
 
@@ -409,9 +403,9 @@ void LockManager::UpdateRowLockSet(Transaction *txn, table_oid_t oid, RID rid, L
 
         (*x_row_lock_set)[oid].erase(rid);
 
-        if ((*x_row_lock_set)[oid].empty()) {
-          x_row_lock_set->erase(oid);
-        }
+        //if ((*x_row_lock_set)[oid].empty()) {
+        //  x_row_lock_set->erase(oid);
+        //}
       }
       break;
     }
@@ -426,10 +420,9 @@ void LockManager::UpdateRowLockSet(Transaction *txn, table_oid_t oid, RID rid, L
         assert(s_row_lock_set->find(oid) != s_row_lock_set->end());
         assert((*s_row_lock_set)[oid].find(rid) != (*s_row_lock_set)[oid].end());  
         (*s_row_lock_set)[oid].erase(rid);
-
-        if ((*s_row_lock_set)[oid].empty()) {
-          s_row_lock_set->erase(oid);
-        }
+        //if ((*s_row_lock_set)[oid].empty()) {
+        //  s_row_lock_set->erase(oid);
+        //}
       }
       break;
     }
