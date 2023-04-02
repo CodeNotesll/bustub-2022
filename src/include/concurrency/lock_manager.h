@@ -17,6 +17,7 @@
 #include <list>
 #include <memory>
 #include <mutex>  // NOLINT
+#include <shared_mutex>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -36,7 +37,7 @@ class TransactionManager;
 class LockManager {
  public:
   enum class LockMode { SHARED, EXCLUSIVE, INTENTION_SHARED, INTENTION_EXCLUSIVE, SHARED_INTENTION_EXCLUSIVE };
-
+  //                    S       X          IS                IX                   ISX
   /**
    * Structure to hold a lock request.
    * This could be a lock request on a table OR a row.
@@ -64,7 +65,7 @@ class LockManager {
   class LockRequestQueue {
    public:
     /** List of lock requests for the same resource (table or row) */
-    std::list<LockRequest *> request_queue_;
+    std::list<std::shared_ptr<LockRequest>> request_queue_;  // LockRequest* shared_pt<LockRequest>
     /** For notifying blocked transactions on this rid */
     std::condition_variable cv_;
     /** txn_id of an upgrading transaction (if any) */
@@ -203,6 +204,34 @@ class LockManager {
    *    appropriately (check transaction.h)
    */
 
+  // 检查两个锁是否兼容
+  auto LockModeCompatible(LockMode left, LockMode right) -> bool;
+
+  // 如果request 的lock_mode和队列前面的 请求锁兼容，那么GrantLock返回true
+  auto GrantLock(const std::shared_ptr<LockRequestQueue> &queue, const std::shared_ptr<LockRequest> &request) -> bool;
+
+  // 检查transaction state, isolation level, lock_mode是否兼容
+  void CheckCompatible(Transaction *txn, LockMode lock_mode);
+
+  // 检查txn对oid是否持有锁，如果持有锁，返回true以及锁的模式
+  auto CheckTableLock(Transaction *txn, table_oid_t oid) -> std::pair<bool, LockMode>;
+
+  // 检查txn对RID是否持有锁，如果持有锁，返回true以及锁的模式
+  auto CheckRowLock(Transaction *txn, table_oid_t oid, RID rid) -> std::pair<bool, LockMode>;
+
+  // 查看held_lock_mode 能否升级为 lock_mode
+  void CheckLockUpgrade(Transaction *txn, LockMode held_lock_mode, LockMode lock_mode);
+
+  // 检查 从old模式 升级到 cur模式是否兼容
+  auto UpgradeCompatible(LockMode old, LockMode cur) -> bool;
+
+  // 如果 add 为真，根据lock_mode将oid加入txn相应的table_lock_set中
+  // 否则 根据lock_mode将oid从txn相应的table_lock_set删除
+  void UpdateTableLockSet(Transaction *txn, table_oid_t oid, LockMode lock_mode, bool add);
+
+  // 如果 add 为真，根据lock_mode将rid加入txn相应的row_lock_set中
+  // 否则 根据lock_mode将rid从txn相应的table_lock_set删除
+  void UpdateRowLockSet(Transaction *txn, table_oid_t oid, RID rid, LockMode lockmode, bool add);
   /**
    * Acquire a lock on table_oid_t in the given lock_mode.
    * If the transaction already holds a lock on the table, upgrade the lock
@@ -219,6 +248,7 @@ class LockManager {
    */
   auto LockTable(Transaction *txn, LockMode lock_mode, const table_oid_t &oid) noexcept(false) -> bool;
 
+  void UpdateTxnState(Transaction *txn, LockMode lock_mode);
   /**
    * Release the lock held on a table by the transaction.
    *

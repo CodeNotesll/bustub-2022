@@ -347,6 +347,7 @@ class Transaction {
   /** Concurrent index: the page IDs that were deleted during index operation.*/
   std::shared_ptr<std::unordered_set<page_id_t>> deleted_page_set_;
 
+  // lock set 在事务加锁或者解锁时维护
   /** LockManager: the set of shared-locked tuples held by this transaction. */
   std::shared_ptr<std::unordered_set<RID>> shared_lock_set_;
   /** LockManager: the set of exclusive-locked tuples held by this transaction. */

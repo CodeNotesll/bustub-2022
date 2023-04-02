@@ -343,6 +343,7 @@ class Catalog {
   // 获得database中所有表 名称
   auto GetTableNames() -> std::vector<std::string> {
     std::vector<std::string> result;
+    result.reserve(table_names_.size());  // for preformance-inefficient-vector-operation
     for (const auto &x : table_names_) {
       result.push_back(x.first);
     }
