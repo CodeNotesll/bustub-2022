@@ -98,20 +98,23 @@ void LockManager::CheckLockUpgrade(Transaction *txn, LockMode held_lock_mode, Lo
     case LockMode::SHARED:
     case LockMode::INTENTION_EXCLUSIVE:
       if (lock_mode != LockMode::EXCLUSIVE && lock_mode != LockMode::SHARED_INTENTION_EXCLUSIVE) {
-        //std::cout << RED << "checklockupgrade: incompatible upgrade" << END << std::endl;
+        std::cout << RED << "checklockupgrade: incompatible upgrade" << END << std::endl;
         txn->SetState(TransactionState::ABORTED);
         throw bustub::TransactionAbortException(txn_id, AbortReason::INCOMPATIBLE_UPGRADE);
       }
+      break;
     case LockMode::SHARED_INTENTION_EXCLUSIVE:
       if (lock_mode != LockMode::EXCLUSIVE) {
-        //std::cout << RED << "checklockupgrade: incompatible upgrade" << END << std::endl;
+        std::cout << RED << "checklockupgrade: incompatible upgrade" << END << std::endl;
         txn->SetState(TransactionState::ABORTED);
         throw bustub::TransactionAbortException(txn_id, AbortReason::INCOMPATIBLE_UPGRADE);
       }
+      break;
     case LockMode::EXCLUSIVE:
-      //std::cout << RED << "checklockupgrade: incompatible upgrade" << END << std::endl;
+      std::cout << RED << "checklockupgrade: incompatible upgrade" << END << std::endl;
       txn->SetState(TransactionState::ABORTED);
       throw bustub::TransactionAbortException(txn_id, AbortReason::INCOMPATIBLE_UPGRADE);
+      break;
   }
 }
 
@@ -185,8 +188,8 @@ auto LockManager::LockModeCompatible(LockMode left, LockMode right) -> bool {
 }
 auto LockManager::GrantLock(const std::shared_ptr<LockRequestQueue> &queue, const std::shared_ptr<LockRequest> &request)
     -> bool {
-  auto it = queue->request_queue_.begin();
   //std::cout << GREEN << "GrantLock called";
+  auto it = queue->request_queue_.begin();
   while (it != queue->request_queue_.end() && (*it) != request) {
     if (!LockModeCompatible((*it)->lock_mode_, request->lock_mode_)) {
       //std::cout << " false " << END << std::endl;
@@ -200,12 +203,13 @@ auto LockManager::GrantLock(const std::shared_ptr<LockRequestQueue> &queue, cons
 
 auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oid_t &oid) -> bool {
   txn_id_t txn_id = txn->GetTransactionId();
-  //std::cout << GREEN << "LockTable called, txn_id: " << txn_id << " table_oid : " << oid << END << std::endl;
+ // std::cout << GREEN << "LockTable called, txn_id: " << txn_id << " table_oid : " << oid << END << std::endl;
   CheckCompatible(txn, lock_mode);
   // txn, lock_mode, isolationlevel 兼容
   // 进入临界区之前提前检查，txn是否获得oid 的锁
   auto [need_upgrade, held_lock_mode] = CheckTableLock(txn, oid);
   if (need_upgrade) {                   // 已经持有锁
+    //std::cout << "need_upgrade" << std::endl; 
     if (held_lock_mode == lock_mode) {  // 申请相同的锁
       return true;
     }
@@ -226,7 +230,7 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
     if (need_upgrade) {
       if (queue->upgrading_ != INVALID_TXN_ID) {  // 已经有一个事务的锁正在升级
         queue->latch_.unlock();
-        //std::cout << RED << "LockTable: upgrade conflict" << END << std::endl;
+        std::cout << RED << "LockTable: upgrade conflict" << END << std::endl;
         txn->SetState(TransactionState::ABORTED);
         throw bustub::TransactionAbortException(txn_id, AbortReason::UPGRADE_CONFLICT);
         return false;
@@ -239,6 +243,7 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
         it++;
       }
       assert(it != queue->request_queue_.end());
+      assert((*it)->lock_mode_ == held_lock_mode);
 
       UpdateTableLockSet(txn, oid, (*it)->lock_mode_, false);
       // 这里不用调用cv->notify_all() ????
@@ -256,6 +261,7 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
       queue->request_queue_.emplace_back(request);                      // 新的请求放在末尾
     }
     //std::cout << YELLOW << "txn_id: " << txn_id << " trying to get lock on oid: " << oid << END << std::endl; 
+    queue->latch_.unlock();
     std::unique_lock<std::mutex> lk(queue->latch_);
     while (!GrantLock(queue, request)) {
       queue->cv_.wait(lk);
@@ -297,6 +303,9 @@ void LockManager::UpdateTxnState(Transaction *txn, LockMode lock_mode) {
   if (lock_mode != LockMode::EXCLUSIVE && lock_mode != LockMode::SHARED) {
     return;
   }
+  if (txn->GetState() != TransactionState::GROWING) {
+    return;
+  }
   // lock_mode == s || lock_mode == x
   switch (txn->GetIsolationLevel()) {
     case IsolationLevel::READ_COMMITTED:
@@ -331,8 +340,15 @@ auto LockManager::UnlockTable(Transaction *txn, const table_oid_t &oid) -> bool 
   auto s_row_lock_set = txn->GetSharedRowLockSet();
   auto x_row_lock_set = txn->GetExclusiveRowLockSet();
   // 检查 txn是否持有table中row的锁， 记得x_row_lock_set->erase();
-  if (s_row_lock_set->find(oid) != s_row_lock_set->end() || x_row_lock_set->find(oid) != x_row_lock_set->end()) {
-    //std::cout << RED << "unlocktable: TABLE_UNLOCKED_BEFORE_UNLOCKING_ROWS " << END << std::endl; 
+  if (x_row_lock_set->find(oid) != x_row_lock_set->end()) {
+    std::cout << "x_row_lock_set" << std::endl;
+    std::cout << RED << "unlocktable: TABLE_UNLOCKED_BEFORE_UNLOCKING_ROWS " << END << std::endl; 
+    txn->SetState(TransactionState::ABORTED);
+    throw bustub::TransactionAbortException(txn_id, AbortReason::TABLE_UNLOCKED_BEFORE_UNLOCKING_ROWS);
+  }
+  if (s_row_lock_set->find(oid) != s_row_lock_set->end()) {
+    std::cout << "s_row_lock_set" << std::endl;
+    std::cout << RED << "unlocktable: TABLE_UNLOCKED_BEFORE_UNLOCKING_ROWS " << END << std::endl; 
     txn->SetState(TransactionState::ABORTED);
     throw bustub::TransactionAbortException(txn_id, AbortReason::TABLE_UNLOCKED_BEFORE_UNLOCKING_ROWS);
   }
@@ -363,12 +379,10 @@ auto LockManager::UnlockTable(Transaction *txn, const table_oid_t &oid) -> bool 
 }
 
 auto LockManager::CheckRowLock(Transaction *txn, table_oid_t oid, RID rid) -> std::pair<bool, LockMode> {
-  auto share_lock_set = txn->GetSharedLockSet();
-  auto exclusive_lock_set = txn->GetExclusiveLockSet();
-  if (share_lock_set->find(rid) != share_lock_set->end()) {  // 持有s锁
+  if (txn->IsRowSharedLocked(oid, rid)) {  // 持有s锁
     return {true, LockMode::SHARED};
   }
-  if (exclusive_lock_set->find(rid) != exclusive_lock_set->end()) {
+  if (txn->IsRowExclusiveLocked(oid, rid)) {
     return {true, LockMode::EXCLUSIVE};
   }
   return {false, LockMode::SHARED};
@@ -386,6 +400,7 @@ void LockManager::UpdateRowLockSet(Transaction *txn, table_oid_t oid, RID rid, L
         exclusive_lock_set->insert(rid);
         (*x_row_lock_set)[oid].insert(rid);
       } else {
+
         assert(exclusive_lock_set->find(rid) != exclusive_lock_set->end());
         exclusive_lock_set->erase(rid);
 
@@ -426,8 +441,7 @@ void LockManager::UpdateRowLockSet(Transaction *txn, table_oid_t oid, RID rid, L
 
 auto LockManager::LockRow(Transaction *txn, LockMode lock_mode, const table_oid_t &oid, const RID &rid) -> bool {
   txn_id_t txn_id = txn->GetTransactionId();
-  //std::cout << "LockRow called, txn_id: " << txn_id 
-  //          << " oid: " << oid << std::endl;
+
   CheckCompatible(txn, lock_mode);
   if (lock_mode != LockMode::SHARED && lock_mode != LockMode::EXCLUSIVE) {
     txn->SetState(TransactionState::ABORTED);
@@ -446,7 +460,6 @@ auto LockManager::LockRow(Transaction *txn, LockMode lock_mode, const table_oid_
       return false;
     }
   }
-
   auto [need_upgrade, held_lock_mode] = CheckRowLock(txn, oid, rid);
   if (need_upgrade) {  // 之前持有锁
     if (held_lock_mode == lock_mode) {
@@ -477,6 +490,7 @@ auto LockManager::LockRow(Transaction *txn, LockMode lock_mode, const table_oid_
         it++;
       }
       assert(it != queue->request_queue_.end());
+      assert((*it)->lock_mode_ == held_lock_mode);
 
       UpdateRowLockSet(txn, oid, rid, (*it)->lock_mode_, false);
       // 这里不用调用cv->notify_all() ????
@@ -494,6 +508,7 @@ auto LockManager::LockRow(Transaction *txn, LockMode lock_mode, const table_oid_
       queue->request_queue_.emplace_back(request);
     }
 
+    queue->latch_.unlock();
     std::unique_lock<std::mutex> lk(queue->latch_);
     while (!GrantLock(queue, request)) {
       queue->cv_.wait(lk);

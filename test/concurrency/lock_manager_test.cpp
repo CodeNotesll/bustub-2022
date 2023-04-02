@@ -122,10 +122,11 @@ void TableLockUpgradeTest1() {
   /** Take S lock */
   EXPECT_EQ(true, lock_mgr.LockTable(txn1, LockManager::LockMode::SHARED, oid));
   CheckTableLockSizes(txn1, 1, 0, 0, 0, 0);
-
+  //std::cout << "***********" << std::endl;
   /** Upgrade S to X */
   EXPECT_EQ(true, lock_mgr.LockTable(txn1, LockManager::LockMode::EXCLUSIVE, oid));
   CheckTableLockSizes(txn1, 0, 1, 0, 0, 0);
+  //std::cout << "~~~~~~~~~~~" << std::endl;
 
   /** Clean up */
   txn_mgr.Commit(txn1);
@@ -217,11 +218,12 @@ void TwoPLTest1() {
   EXPECT_TRUE(res);
   CheckGrowing(txn);
   CheckTxnRowLockSize(txn, oid, 1, 1);
-
+  std::cout << "***********" << std::endl;
   res = lock_mgr.UnlockRow(txn, oid, rid0);
   EXPECT_TRUE(res);
   CheckShrinking(txn);
   CheckTxnRowLockSize(txn, oid, 0, 1);
+  std::cout << "***********" << std::endl;
 
   try {
     lock_mgr.LockRow(txn, LockManager::LockMode::SHARED, oid, rid0);
@@ -229,6 +231,7 @@ void TwoPLTest1() {
     CheckAborted(txn);
     CheckTxnRowLockSize(txn, oid, 0, 1);
   }
+  std::cout << "***********" << std::endl;
 
   // Need to call txn_mgr's abort
   txn_mgr.Abort(txn);
