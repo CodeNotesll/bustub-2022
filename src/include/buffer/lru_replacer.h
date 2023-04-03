@@ -66,10 +66,9 @@ class LRUReplacer : public Replacer {
   struct Doublelinklist {
     frame_id_t frame_id_;
     size_t timestamp_;
-    Doublelinklist *pre_;
-    Doublelinklist *next_;
-    explicit Doublelinklist(frame_id_t frame_id, size_t timestamp)
-        : frame_id_(frame_id), timestamp_(timestamp), pre_(nullptr), next_(nullptr) {}
+    Doublelinklist *pre_{nullptr};
+    Doublelinklist *next_{nullptr};
+    explicit Doublelinklist(frame_id_t frame_id, size_t timestamp) : frame_id_(frame_id), timestamp_(timestamp) {}
   };
   using dll = Doublelinklist;
   dll *head_;

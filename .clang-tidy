@@ -26,6 +26,7 @@ Checks:     '
             performance-*,
             portability-*,
             readability-*,
+            -modernize-macro-to-enum,
             -bugprone-easily-swappable-parameters,
             -bugprone-implicit-widening-of-multiplication-result,
             -bugprone-narrowing-conversions,
@@ -47,6 +48,8 @@ Checks:     '
             -readability-make-member-function-const,
             -readability-qualified-auto,
             -readability-redundant-access-specifiers,
+            -readability-suspicious-call-argument,
+            -readability-simplify-boolean-expr,
             -bugprone-exception-escape,
             '
 CheckOptions:
