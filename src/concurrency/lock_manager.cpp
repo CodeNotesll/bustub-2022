@@ -467,8 +467,10 @@ auto LockManager::LockRow(Transaction *txn, LockMode lock_mode, const table_oid_
     throw bustub::TransactionAbortException(txn_id, AbortReason::TABLE_LOCK_NOT_PRESENT);
   }
 
-  if (lock_mode == LockMode::EXCLUSIVE) {  // ???????????
+  if (lock_mode == LockMode::EXCLUSIVE) {  // table锁不正确
     if (table_lock_mode == LockMode::SHARED || table_lock_mode == LockMode::INTENTION_SHARED) {
+      txn->SetState(TransactionState::ABORTED);
+      throw bustub::TransactionAbortException(txn_id, AbortReason::TABLE_LOCK_NOT_PRESENT);
       return false;
     }
   }
@@ -489,6 +491,7 @@ auto LockManager::LockRow(Transaction *txn, LockMode lock_mode, const table_oid_
     std::shared_ptr<LockRequest> request;
     if (need_upgrade) {  // 需要升级
       if (queue->upgrading_ != INVALID_TXN_ID) {
+        queue->latch_.unlock();  // 注意分支解锁
         txn->SetState(TransactionState::ABORTED);
         throw bustub::TransactionAbortException(txn_id, AbortReason::UPGRADE_CONFLICT);
         return false;
