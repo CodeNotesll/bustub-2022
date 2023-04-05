@@ -125,8 +125,7 @@ void BasicDeadlockDetectionTest() {
 }
 TEST(LockManagerDeadlockDetectionTest, BasicDeadlockDetectionTest) { BasicDeadlockDetectionTest(); }
 
-
-void EdgeTest1(){
+void EdgeTest1() {
   LockManager lock_mgr{};
 
   const int num_nodes = 100;
@@ -167,9 +166,9 @@ void EdgeTest1(){
     EXPECT_EQ(edges[i], lock_mgr_edges[i]);
   }
 }
-TEST(LockManagerDeadlockDetectionTest, EdgeTest1) {EdgeTest1();}
+TEST(LockManagerDeadlockDetectionTest, EdgeTest1) { EdgeTest1(); }
 
-void BasicDeadlockDetectionTest1(){
+void BasicDeadlockDetectionTest1() {
   LockManager lock_mgr{};
   TransactionManager txn_mgr{&lock_mgr};
 
@@ -228,8 +227,8 @@ void BasicDeadlockDetectionTest1(){
   delete txn0;
   delete txn1;
 }
-TEST(LockManagerDeadlockDetectionTest, BasicDeadlockDetectionTest1) { BasicDeadlockDetectionTest1();}
-void BasicDeadlockDetectionTest2(){
+TEST(LockManagerDeadlockDetectionTest, BasicDeadlockDetectionTest1) { BasicDeadlockDetectionTest1(); }
+void BasicDeadlockDetectionTest2() {
   LockManager lock_mgr{};
   TransactionManager txn_mgr{&lock_mgr};
 
@@ -311,9 +310,9 @@ void BasicDeadlockDetectionTest2(){
   delete txn1;
   delete txn2;
 }
-TEST(LockManagerDeadlockDetectionTest, BasicDeadlockDetectionTest2) {BasicDeadlockDetectionTest2();}
+TEST(LockManagerDeadlockDetectionTest, BasicDeadlockDetectionTest2) { BasicDeadlockDetectionTest2(); }
 
-void CycleTest1(){
+void CycleTest1() {
   LockManager lock_mgr{};
   lock_mgr.AddEdge(0, 1);
   lock_mgr.AddEdge(1, 0);
@@ -329,4 +328,34 @@ void CycleTest1(){
   lock_mgr.RemoveEdge(4, 2);
 }
 TEST(LockManagerDeadlockDetectionTest, CycleTest1) { CycleTest1(); }
+
+void CycleTest2() {
+  LockManager lock_mgr{};
+  lock_mgr.AddEdge(4, 5);
+  lock_mgr.AddEdge(3, 4);
+  lock_mgr.AddEdge(5, 3);
+  lock_mgr.AddEdge(1, 2);
+  lock_mgr.AddEdge(0, 1);
+  lock_mgr.AddEdge(2, 0);
+  txn_id_t txn_id;
+  lock_mgr.HasCycle(&txn_id);
+  EXPECT_EQ(2, txn_id);
+  lock_mgr.RemoveEdge(2, 0);
+  lock_mgr.HasCycle(&txn_id);
+  EXPECT_EQ(5, txn_id);
+  lock_mgr.RemoveEdge(5, 3);
+  lock_mgr.AddEdge(1, 2);
+  lock_mgr.AddEdge(3, 2);
+  lock_mgr.AddEdge(0, 1);
+  lock_mgr.AddEdge(2, 0);
+  lock_mgr.HasCycle(&txn_id);
+  EXPECT_EQ(2, txn_id);
+  lock_mgr.RemoveEdge(2, 0);
+  for (const auto &[beg, end] : lock_mgr.GetEdgeList()) {
+    std::cout << beg << "---->" << end << std::endl;
+  }
+  lock_mgr.HasCycle(&txn_id);
+}
+TEST(LockManagerDeadlockDetectionTest, CycleTest2) { CycleTest2(); }
+
 }  // namespace bustub

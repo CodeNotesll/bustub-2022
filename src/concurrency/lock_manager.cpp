@@ -11,9 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "concurrency/lock_manager.h"
+#include <algorithm>
 #include <cassert>
 #include <functional>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <stdexcept>
 #include <unordered_map>
@@ -633,29 +635,30 @@ auto LockManager::UnlockRow(Transaction *txn, const table_oid_t &oid, const RID 
 }
 
 void LockManager::AddEdge(txn_id_t t1, txn_id_t t2) {  // t1 ----> t2
-  std::cout << "AddEdge: " << t1 << " ---> " << t2 << std::endl;
+  // std::cout << "AddEdge: " << t1 << " ---> " << t2 << std::endl;
   waits_for_[t1].insert(t2);
 }
 
 void LockManager::RemoveEdge(txn_id_t t1, txn_id_t t2) {
   assert(waits_for_[t1].find(t2) != waits_for_[t1].end());
-  std::cout << "RemoveEdge: " << t1 << " ---> " << t2 << std::endl;
+  // std::cout << "RemoveEdge: " << t1 << " ---> " << t2 << std::endl;
   waits_for_[t1].erase(t2);
 }
 
 auto LockManager::HasCycle(txn_id_t *txn_id) -> bool {
-  txn_id_t begtxn = BUSTUB_INT32_MAX;  // 最小的dfs开始事务
-
-  std::unordered_map<txn_id_t, int> state;
-  std::unordered_map<txn_id_t, int> parent;
+  // std::cout << "HasCycle called" << std::endl;
+  std::map<txn_id_t, int> state;
+  std::map<txn_id_t, int> parent;
+  std::set<txn_id_t> txns;
   for (const auto &[txn, _] : waits_for_) {
-    begtxn = std::min(txn, begtxn);  // 遍历得到最小的节点
-    parent[txn] = -1;
-    state[txn] = 0;  // 初始化节点状态
+    // state[txn] = 0;
+    // parent[txn] = -1;
+    txns.insert(txn);
   }
   // dfs检测环路
   // 从源点 s 出发 是否能找到回路
-  std::function<bool( int)> dfs = [&](txn_id_t s) -> bool {
+  std::function<bool(int)> dfs = [&](txn_id_t s) -> bool {
+    // std::cout << "s is " << s << std::endl;
     state[s] = 1;  // 访问过
     // 访问下一节点
     for (const auto &t : waits_for_[s]) {
@@ -664,6 +667,7 @@ auto LockManager::HasCycle(txn_id_t *txn_id) -> bool {
         txn_id_t max_txn_id = now;
         while (now != t) {
           now = parent[now];
+          // std::cout << "now is " << now << std::endl;
           max_txn_id = std::max(max_txn_id, now);
         }
         *txn_id = max_txn_id;
@@ -676,7 +680,19 @@ auto LockManager::HasCycle(txn_id_t *txn_id) -> bool {
     }
     return false;
   };
-  return dfs(begtxn);
+
+  // return std::any_of(state.begin(), state.end(),
+  //                    [&](std::pair<txn_id_t, int> a) { return a.second == 0 && dfs(a.first); });
+  for (const auto &begtxn : txns) {
+    for (const auto &[txn, _] : waits_for_) {
+      state[txn] = 0;
+      parent[txn] = -1;
+    }
+    if (dfs(begtxn)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 auto LockManager::GetEdgeList() -> std::vector<std::pair<txn_id_t, txn_id_t>> {
@@ -700,14 +716,15 @@ void LockManager::RunCycleDetection() {
       // BuildGraph<decltype(table_lock_map_)>(table_lock_map_);
       // BuildGraph<decltype(row_lock_map_)>(row_lock_map_);
       for (const auto &[oid, queue] : table_lock_map_) {  // 对于同一个oid资源
-        std::vector<txn_id_t> granted_set;                // 所有获取锁的事务集合
-        std::vector<txn_id_t> waiting_set;                // 所有等待锁的事务集合
+        std::scoped_lock<std::mutex> queue_lk(queue->latch_);
+        std::vector<txn_id_t> granted_set;  // 所有获取锁的事务集合
+        std::vector<txn_id_t> waiting_set;  // 所有等待锁的事务集合
         for (const auto &req : queue->request_queue_) {
           txn_id_t txn_id = req->txn_id_;
-          Transaction *txn = TransactionManager::GetTransaction(txn_id);
-          if (txn->GetState() == TransactionState::ABORTED) {
-            continue;
-          }
+          // Transaction *txn = TransactionManager::GetTransaction(txn_id);
+          // if (txn->GetState() == TransactionState::ABORTED) {
+          //   continue;
+          // }
           if (req->granted_) {
             granted_set.emplace_back(txn_id);
           } else {
@@ -723,14 +740,15 @@ void LockManager::RunCycleDetection() {
       }
 
       for (const auto &[rid, queue] : row_lock_map_) {  // 对于同一rid资源
-        std::vector<txn_id_t> granted_set;              // 所有获取锁的事务集合
-        std::vector<txn_id_t> waiting_set;              // 所有等待锁的事务集合
+        std::scoped_lock<std::mutex> queue_lk(queue->latch_);
+        std::vector<txn_id_t> granted_set;  // 所有获取锁的事务集合
+        std::vector<txn_id_t> waiting_set;  // 所有等待锁的事务集合
         for (const auto &req : queue->request_queue_) {
           txn_id_t txn_id = req->txn_id_;
-          Transaction *txn = TransactionManager::GetTransaction(txn_id); // txn 被删除？？？？？
-          if (txn->GetState() == TransactionState::ABORTED) {
-            continue;
-          }
+          // Transaction *txn = TransactionManager::GetTransaction(txn_id);  // txn 被删除？？？？？
+          // if (txn->GetState() == TransactionState::ABORTED) {
+          //   continue;
+          // }
           if (req->granted_) {
             granted_set.emplace_back(txn_id);
           } else {
@@ -755,13 +773,33 @@ void LockManager::RunCycleDetection() {
         for (const auto &end : waits_for_[toabort]) {
           ends.push_back(end);
         }
-        for(const auto& end :ends) {
+        for (const auto &end : ends) {
           RemoveEdge(toabort, end);
         }
         waits_for_.erase(toabort);
+
+        // 唤醒阻塞的线程
+        if (table_requesting_.find(toabort) != table_requesting_.end()) {
+          table_oid_t requested_oid = *(table_requesting_[toabort].begin());
+          table_lock_map_[requested_oid]->cv_.notify_all();
+          table_requesting_.erase(toabort);
+        }
+
+        if (row_requesting_.find(toabort) != row_requesting_.end()) {
+          RID requested_rid = *(row_requesting_[toabort].begin());
+          row_lock_map_[requested_rid]->cv_.notify_all();
+          row_requesting_.erase(toabort);
+        }
       }
+
+      waits_for_.clear();
+      row_requesting_.clear();
+      table_requesting_.clear();
+
+      // std::cout << "no cycle" << std::endl;
       // 结束
     }
+    // std::cout << "out of scope" << std::endl;
   }
 }
 
