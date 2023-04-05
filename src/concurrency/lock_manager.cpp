@@ -12,14 +12,19 @@
 
 #include "concurrency/lock_manager.h"
 #include <cassert>
+#include <functional>
 #include <iterator>
 #include <memory>
 #include <stdexcept>
+#include <unordered_map>
+#include <vector>
 
 #include "common/config.h"
 #include "common/logger.h"
 #include "concurrency/transaction.h"
 #include "concurrency/transaction_manager.h"
+#include "type/limits.h"
+#include "type/type_id.h"
 #include "utf8proc/utf8proc.h"
 
 namespace bustub {
@@ -275,6 +280,19 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
     std::unique_lock<std::mutex> lk(queue->latch_);
     while (!GrantLock(queue, request)) {
       queue->cv_.wait(lk);
+      if (txn->GetState() == TransactionState::ABORTED) {
+        auto it = queue->request_queue_.begin();
+        while (it != queue->request_queue_.end() && (*it) != request) {
+          it++;
+        }  // 找到request 这个请求
+        queue->request_queue_.erase(it);
+        if (queue->upgrading_ == txn_id) {
+          queue->upgrading_ = INVALID_TXN_ID;
+        }
+        queue->latch_.unlock();
+        queue->cv_.notify_all();  // 先唤醒，再更新状态？？？
+        return false;
+      }
     }
     // std::cout << YELLOW << "txn_id: " << txn_id << " granted lock on oid: " << oid << END << std::endl;
     //  持有queue->latch_
@@ -285,14 +303,14 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
     }  // 找到request 这个请求
     queue->request_queue_.erase(it);
 
-    if (txn->GetState() == TransactionState::ABORTED) {
-      if (queue->upgrading_ == txn_id) {
-        queue->upgrading_ = INVALID_TXN_ID;
-      }
-      queue->latch_.unlock();
-      queue->cv_.notify_all();  // 先唤醒，再更新状态？？？
-      return false;
-    }
+    // if (txn->GetState() == TransactionState::ABORTED) {
+    //   if (queue->upgrading_ == txn_id) {
+    //     queue->upgrading_ = INVALID_TXN_ID;
+    //   }
+    //   queue->latch_.unlock();
+    //   queue->cv_.notify_all();  // 先唤醒，再更新状态？？？
+    //   return false;
+    // }
 
     it = queue->request_queue_.begin();
     queue->request_queue_.insert(it, request);
@@ -527,6 +545,19 @@ auto LockManager::LockRow(Transaction *txn, LockMode lock_mode, const table_oid_
     std::unique_lock<std::mutex> lk(queue->latch_);
     while (!GrantLock(queue, request)) {
       queue->cv_.wait(lk);
+      if (txn->GetState() == TransactionState::ABORTED) {
+        auto it = queue->request_queue_.begin();
+        while (it != queue->request_queue_.end() && (*it) != request) {
+          it++;
+        }  // 找到request 这个请求
+        queue->request_queue_.erase(it);
+        if (queue->upgrading_ == txn_id) {
+          queue->upgrading_ = INVALID_TXN_ID;
+        }
+        queue->latch_.unlock();
+        queue->cv_.notify_all();  // 先唤醒，再更新状态？？？
+        return false;
+      }
     }
     // txn->State() --> aborted ???
     // 持有queue->latch_
@@ -537,14 +568,14 @@ auto LockManager::LockRow(Transaction *txn, LockMode lock_mode, const table_oid_
     }  // 找到request 这个请求
     queue->request_queue_.erase(it);
 
-    if (txn->GetState() == TransactionState::ABORTED) {
-      queue->latch_.unlock();
-      if (queue->upgrading_ == txn_id) {
-        queue->upgrading_ = INVALID_TXN_ID;
-      }
-      queue->cv_.notify_all();  // 先唤醒，再更新状态？？？
-      return false;
-    }
+    // if (txn->GetState() == TransactionState::ABORTED) {
+    //   queue->latch_.unlock();
+    //   if (queue->upgrading_ == txn_id) {
+    //     queue->upgrading_ = INVALID_TXN_ID;
+    //   }
+    //   queue->cv_.notify_all();  // 先唤醒，再更新状态？？？
+    //   return false;
+    // }
 
     it = queue->request_queue_.begin();
     queue->request_queue_.insert(it, request);
@@ -601,14 +632,60 @@ auto LockManager::UnlockRow(Transaction *txn, const table_oid_t &oid, const RID 
   return true;
 }
 
-void LockManager::AddEdge(txn_id_t t1, txn_id_t t2) {}
+void LockManager::AddEdge(txn_id_t t1, txn_id_t t2) {  // t1 ----> t2
+  std::cout << "AddEdge: " << t1 << " ---> " << t2 << std::endl;
+  waits_for_[t1].insert(t2);
+}
 
-void LockManager::RemoveEdge(txn_id_t t1, txn_id_t t2) {}
+void LockManager::RemoveEdge(txn_id_t t1, txn_id_t t2) {
+  assert(waits_for_[t1].find(t2) != waits_for_[t1].end());
+  std::cout << "RemoveEdge: " << t1 << " ---> " << t2 << std::endl;
+  waits_for_[t1].erase(t2);
+}
 
-auto LockManager::HasCycle(txn_id_t *txn_id) -> bool { return false; }
+auto LockManager::HasCycle(txn_id_t *txn_id) -> bool {
+  txn_id_t begtxn = BUSTUB_INT32_MAX;  // 最小的dfs开始事务
+
+  std::unordered_map<txn_id_t, int> state;
+  std::unordered_map<txn_id_t, int> parent;
+  for (const auto &[txn, _] : waits_for_) {
+    begtxn = std::min(txn, begtxn);  // 遍历得到最小的节点
+    parent[txn] = -1;
+    state[txn] = 0;  // 初始化节点状态
+  }
+  // dfs检测环路
+  // 从源点 s 出发 是否能找到回路
+  std::function<bool( int)> dfs = [&](txn_id_t s) -> bool {
+    state[s] = 1;  // 访问过
+    // 访问下一节点
+    for (const auto &t : waits_for_[s]) {
+      if (state[t] == 1) {  // 产生回路
+        txn_id_t now = s;
+        txn_id_t max_txn_id = now;
+        while (now != t) {
+          now = parent[now];
+          max_txn_id = std::max(max_txn_id, now);
+        }
+        *txn_id = max_txn_id;
+        return true;
+      }
+      parent[t] = s;
+      if (dfs(t)) {
+        return true;
+      }
+    }
+    return false;
+  };
+  return dfs(begtxn);
+}
 
 auto LockManager::GetEdgeList() -> std::vector<std::pair<txn_id_t, txn_id_t>> {
   std::vector<std::pair<txn_id_t, txn_id_t>> edges(0);
+  for (const auto &[beg, vec] : waits_for_) {
+    for (const auto &end : vec) {
+      edges.emplace_back(beg, end);
+    }
+  }
   return edges;
 }
 
@@ -616,6 +693,99 @@ void LockManager::RunCycleDetection() {
   while (enable_cycle_detection_) {
     std::this_thread::sleep_for(cycle_detection_interval);
     {  // TODO(students): detect deadlock
+      std::scoped_lock<std::mutex> wait_lk(waits_for_latch_);
+      std::scoped_lock<std::mutex> table_lk(table_lock_map_latch_);
+      std::scoped_lock<std::mutex> row_lk(row_lock_map_latch_);
+
+      // BuildGraph<decltype(table_lock_map_)>(table_lock_map_);
+      // BuildGraph<decltype(row_lock_map_)>(row_lock_map_);
+      for (const auto &[oid, queue] : table_lock_map_) {  // 对于同一个oid资源
+        std::vector<txn_id_t> granted_set;                // 所有获取锁的事务集合
+        std::vector<txn_id_t> waiting_set;                // 所有等待锁的事务集合
+        for (const auto &req : queue->request_queue_) {
+          txn_id_t txn_id = req->txn_id_;
+          Transaction *txn = TransactionManager::GetTransaction(txn_id);
+          if (txn->GetState() == TransactionState::ABORTED) {
+            continue;
+          }
+          if (req->granted_) {
+            granted_set.emplace_back(txn_id);
+          } else {
+            waiting_set.emplace_back(txn_id);
+            table_requesting_[txn_id].push_back(oid);  // 记录每个事务的正在等待的资源
+          }
+        }
+        for (const auto &waiting_txn_id : waiting_set) {  // 添加边，建图
+          for (const auto &granted_txn_id : granted_set) {
+            AddEdge(waiting_txn_id, granted_txn_id);
+          }
+        }
+      }
+
+      for (const auto &[rid, queue] : row_lock_map_) {  // 对于同一rid资源
+        std::vector<txn_id_t> granted_set;              // 所有获取锁的事务集合
+        std::vector<txn_id_t> waiting_set;              // 所有等待锁的事务集合
+        for (const auto &req : queue->request_queue_) {
+          txn_id_t txn_id = req->txn_id_;
+          Transaction *txn = TransactionManager::GetTransaction(txn_id); // txn 被删除？？？？？
+          if (txn->GetState() == TransactionState::ABORTED) {
+            continue;
+          }
+          if (req->granted_) {
+            granted_set.emplace_back(txn_id);
+          } else {
+            waiting_set.emplace_back(txn_id);
+            row_requesting_[txn_id].push_back(rid);  // 记录每个事务的正在等待的资源
+          }
+        }
+        for (const auto &waiting_txn_id : waiting_set) {  // 添加边，建图
+          for (const auto &granted_txn_id : granted_set) {
+            AddEdge(waiting_txn_id, granted_txn_id);
+          }
+        }
+      }
+
+      txn_id_t toabort = 0;
+      while (HasCycle(&toabort)) {
+        // toabout 是要abort的事务id
+        Transaction *txn = TransactionManager::GetTransaction(toabort);
+        txn->SetState(TransactionState::ABORTED);
+        // 删除边
+        std::vector<txn_id_t> ends;
+        for (const auto &end : waits_for_[toabort]) {
+          ends.push_back(end);
+        }
+        for(const auto& end :ends) {
+          RemoveEdge(toabort, end);
+        }
+        waits_for_.erase(toabort);
+      }
+      // 结束
+    }
+  }
+}
+
+template <typename T>
+void LockManager::BuildGraph(T mp) {
+  for (const auto &[src, queue] : mp) {  // 对于同一个oid资源
+    std::vector<txn_id_t> granted_set;   // 所有获取锁的事务集合
+    std::vector<txn_id_t> waiting_set;   // 所有等待锁的事务集合
+    for (const auto &req : queue->request_queue_) {
+      if (req->granted_) {
+        granted_set.emplace_back(req->txn_id_);
+      } else {
+        waiting_set.emplace_back(req->txn_id_);
+        if (typeid(src) == typeid(table_oid_t)) {
+          table_requesting_[req->txn_id_].push_back(src);  // 记录每个事务的正在等待的资源
+        } else {
+          row_requesting_[req->txn_id_].push_back(src);
+        }
+      }
+    }
+    for (const auto &waiting_txn_id : waiting_set) {  // 添加边，建图
+      for (const auto &granted_txn_id : granted_set) {
+        AddEdge(waiting_txn_id, granted_txn_id);
+      }
     }
   }
 }

@@ -17,6 +17,7 @@
 #include <list>
 #include <memory>
 #include <mutex>  // NOLINT
+#include <set>
 #include <shared_mutex>
 #include <unordered_map>
 #include <unordered_set>
@@ -248,6 +249,7 @@ class LockManager {
    */
   auto LockTable(Transaction *txn, LockMode lock_mode, const table_oid_t &oid) noexcept(false) -> bool;
 
+  // 检查是否更新事务状态， growing-->shrinking
   void UpdateTxnState(Transaction *txn, LockMode lock_mode);
   /**
    * Release the lock held on a table by the transaction.
@@ -327,6 +329,9 @@ class LockManager {
    */
   auto RunCycleDetection() -> void;
 
+  template <typename T>
+  void BuildGraph(T mp);
+
  private:
   /** Fall 2022 */
   /** Structure that holds lock requests for a given table oid */
@@ -342,8 +347,11 @@ class LockManager {
   std::atomic<bool> enable_cycle_detection_;
   std::thread *cycle_detection_thread_;
   /** Waits-for graph representation. */
-  std::unordered_map<txn_id_t, std::vector<txn_id_t>> waits_for_;
+  std::unordered_map<txn_id_t, std::set<txn_id_t>> waits_for_;
   std::mutex waits_for_latch_;
+
+  std::unordered_map<txn_id_t, std::vector<table_oid_t>> table_requesting_;
+  std::unordered_map<txn_id_t, std::vector<RID>> row_requesting_;
 };
 
 }  // namespace bustub
