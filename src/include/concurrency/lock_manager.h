@@ -84,6 +84,7 @@ class LockManager {
   }
 
   ~LockManager() {
+    std::cout << "Destructor called" << std::endl;
     enable_cycle_detection_ = false;
     cycle_detection_thread_->join();
     delete cycle_detection_thread_;
@@ -231,8 +232,15 @@ class LockManager {
   void UpdateTableLockSet(Transaction *txn, table_oid_t oid, LockMode lock_mode, bool add);
 
   // 如果 add 为真，根据lock_mode将rid加入txn相应的row_lock_set中
-  // 否则 根据lock_mode将rid从txn相应的table_lock_set删除
+  // 否则 根据lock_mode将rid从txn相应的row_lock_set删除
   void UpdateRowLockSet(Transaction *txn, table_oid_t oid, RID rid, LockMode lockmode, bool add);
+
+  void LockTableInfo(Transaction *txn, const table_oid_t &oid, LockMode lock_mode);
+  void LockRowInfo(Transaction *txn, const table_oid_t &oid, const RID &rid, LockMode lock_mode);
+
+  void UnLockTableInfo(Transaction *txn, const table_oid_t &oid);
+  void UnLockRowInfo(Transaction *txn, const table_oid_t &oid, const RID &rid);
+
   /**
    * Acquire a lock on table_oid_t in the given lock_mode.
    * If the transaction already holds a lock on the table, upgrade the lock
@@ -328,9 +336,6 @@ class LockManager {
    * Runs cycle detection in the background.
    */
   auto RunCycleDetection() -> void;
-
-  template <typename T>
-  void BuildGraph(T mp);
 
  private:
   /** Fall 2022 */

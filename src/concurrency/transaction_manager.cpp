@@ -45,7 +45,7 @@ auto TransactionManager::Begin(Transaction *txn, IsolationLevel isolation_level)
 
 void TransactionManager::Commit(Transaction *txn) {
   txn->SetState(TransactionState::COMMITTED);
-
+  std::cout << "Commit called, txn_id is " << txn->GetTransactionId() << std::endl;
   // Perform all deletes before we commit.
   auto write_set = txn->GetWriteSet();
   while (!write_set->empty()) {
@@ -67,6 +67,7 @@ void TransactionManager::Commit(Transaction *txn) {
 
 void TransactionManager::Abort(Transaction *txn) {
   txn->SetState(TransactionState::ABORTED);
+  std::cout << "Abort called, txn_id is " << txn->GetTransactionId() << std::endl;
   // Rollback before releasing the lock.
   auto table_write_set = txn->GetWriteSet();
   while (!table_write_set->empty()) {
