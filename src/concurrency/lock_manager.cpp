@@ -344,34 +344,6 @@ auto LockManager::GrantLock(Transaction *txn, const std::shared_ptr<LockRequestQ
   }
   return true;
 }
-// txn_id_t txn_id = txn->GetTransactionId();
-// auto it = queue->request_queue_.begin();
-// for (; it != queue->request_queue_.end(); ++it) {
-//   if ((*it)->granted_) {
-//     if (!LockModeCompatible((*it)->lock_mode_, request->lock_mode_)) {
-//       return false;      // 正在申请的锁和已经授予的锁不兼容
-//     }
-//   }
-// }
-// if(queue->upgrading_ != INVALID_TXN_ID) {
-//   return queue->upgrading_ == txn_id;  // 存在锁升级
-// }
-
-// it = queue->request_queue_.begin();
-// for(; it != queue->request_queue_.end() && (*it)->granted_; ++it) {
-
-// }
-// // 第一个 正在等待的 请求
-// if (*it == request) {
-//   return true;
-// }
-// while (it != queue->request_queue_.end() && *it != request) {
-//   if (!((*it)->granted_) && !LockModeCompatible((*it)->lock_mode_, request->lock_mode_)) {
-//     return false;
-//   }  // 和之前处于等待的锁不兼容
-//   ++it;
-// }
-// return true;
 
 auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oid_t &oid) -> bool {
   txn_id_t txn_id = txn->GetTransactionId();
@@ -429,7 +401,7 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
     while (!GrantLock(txn, queue, request)) {
       queue->cv_.wait(lk);
       if (txn->GetState() == TransactionState::ABORTED) {
-        std::cout << "txn: " << txn_id << " aborted " << std::endl;
+        // std::cout << "txn: " << txn_id << " aborted " << std::endl;
         auto it = queue->request_queue_.begin();
         while (it != queue->request_queue_.end() && (*it) != request) {
           it++;
@@ -438,19 +410,19 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
         if (queue->upgrading_ == txn_id) {
           queue->upgrading_ = INVALID_TXN_ID;
         }
-        queue->latch_.unlock();
+        // queue->latch_.unlock();
         queue->cv_.notify_all();
         return false;
       }
     }
     //  持有queue->latch_
-    std::cout << "Txn: " << txn_id << " granted lock on table: " << oid << std::endl;
+    // std::cout << "Txn: " << txn_id << " granted lock on table: " << oid << std::endl;
     request->granted_ = true;
     if (queue->upgrading_ == txn_id) {
       queue->upgrading_ = INVALID_TXN_ID;
     }
     UpdateTableLockSet(txn, oid, lock_mode, true);
-    queue->latch_.unlock();  // 释放 队列的锁
+    // queue->latch_.unlock();  // 释放 队列的锁
 
   } else {                                                                 // 没有相应的队列
     table_lock_map_[oid] = std::make_shared<LockRequestQueue>();           // 新建一个队列
@@ -573,8 +545,8 @@ auto LockManager::LockRow(Transaction *txn, LockMode lock_mode, const table_oid_
       it = queue->request_queue_.begin();
       while (it != queue->request_queue_.end() && (*it)->granted_) {
         it++;
-      }                                                                 // 找到第一个granted_为false的请求
-      request = std::make_shared<LockRequest>(txn_id, lock_mode, oid);  // 新建一个请求节点
+      }                                                                      // 找到第一个granted_为false的请求
+      request = std::make_shared<LockRequest>(txn_id, lock_mode, oid, rid);  // 新建一个请求节点
 
       queue->request_queue_.insert(it, request);                             // 新加入节点放在it之前
     } else {                                                                 // 不需要升级
@@ -595,7 +567,7 @@ auto LockManager::LockRow(Transaction *txn, LockMode lock_mode, const table_oid_
         if (queue->upgrading_ == txn_id) {
           queue->upgrading_ = INVALID_TXN_ID;
         }
-        queue->latch_.unlock();
+        // queue->latch_.unlock();
         queue->cv_.notify_all();  // 这里需要吗
         return false;
       }
@@ -606,8 +578,8 @@ auto LockManager::LockRow(Transaction *txn, LockMode lock_mode, const table_oid_
       queue->upgrading_ = INVALID_TXN_ID;
     }
     UpdateRowLockSet(txn, oid, rid, lock_mode, true);
-    queue->latch_.unlock();  // 释放 队列的锁
-  } else {                   // 请求队列不存在
+    // queue->latch_.unlock();  // 释放 队列的锁
+  } else {  // 请求队列不存在
     row_lock_map_[rid] = std::make_shared<LockRequestQueue>();
     auto request = std::make_shared<LockRequest>(txn_id, lock_mode, oid, rid);
     request->granted_ = true;
