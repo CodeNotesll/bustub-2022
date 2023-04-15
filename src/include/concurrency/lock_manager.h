@@ -84,7 +84,7 @@ class LockManager {
   }
 
   ~LockManager() {
-    std::cout << "Destructor called" << std::endl;
+    // std::cout << "Destructor called" << std::endl;
     enable_cycle_detection_ = false;
     cycle_detection_thread_->join();
     delete cycle_detection_thread_;
@@ -210,7 +210,8 @@ class LockManager {
   auto LockModeCompatible(LockMode left, LockMode right) -> bool;
 
   // 如果request 的lock_mode和队列前面的 请求锁兼容，那么GrantLock返回true
-  auto GrantLock(const std::shared_ptr<LockRequestQueue> &queue, const std::shared_ptr<LockRequest> &request) -> bool;
+  auto GrantLock(Transaction *txn, const std::shared_ptr<LockRequestQueue> &queue,
+                 const std::shared_ptr<LockRequest> &request) -> bool;
 
   // 检查transaction state, isolation level, lock_mode是否兼容
   void CheckCompatible(Transaction *txn, LockMode lock_mode);
