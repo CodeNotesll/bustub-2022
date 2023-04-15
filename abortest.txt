@@ -1,0 +1,126 @@
+25: LockTable called: 0 lock on table 0 in X mode
+25: txn: 0 add X lock on table: 0
+25: LockTable called: 1 lock on table 0 in X mode
+25: LockTable called: 2 lock on table 0 in X mode
+25: UnlockTable called: 0 unlock on table 0
+25: txn: 0 remove X lock on table: 0
+25: txn: 2 add X lock on table: 0   
+25: Destructor called
+
+25: LockTable called: 0 lock on table 0 in X mode
+25: txn: 0 add X lock on table: 0
+25: LockTable called: 1 lock on table 0 in X mode
+25: LockTable called: 2 lock on table 0 in X mode
+25: LockTable called: 3 lock on table 0 in X mode
+25: LockTable called: 4 lock on table 0 in X mode
+25: LockTable called: 5 lock on table 0 in X mode
+25: LockTable called: 6 lock on table 0 in X mode
+25: LockTable called: 7 lock on table 0 in X mode
+25: LockTable called: 8 lock on table 0 in X mode
+25: LockTable called: 9 lock on table 0 in X mode
+25: UnlockTable called: 0 unlock on table 0
+25: txn: 0 remove X lock on table: 0
+25: txn: 9 add X lock on table: 0
+25: UnlockTable called: 9 unlock on table 0
+25: txn: 9 remove X lock on table: 0
+25: Destructor called
+25: LockTable called: 0 lock on table 0 in X mode
+25: txn: 0 add X lock on table: 0
+25: LockTable called: 1 lock on table 0 in X mode
+25: LockTable called: 2 lock on table 0 in X mode
+25: UnlockTable called: 0 unlock on table 0
+25: txn: 0 remove X lock on table: 0
+25: txn: 2 add X lock on table: 0
+25: Destructor called
+25: LockTable called: 0 lock on table 0 in X mode
+25: txn: 0 add X lock on table: 0
+25: LockTable called: 1 lock on table 0 in X mode
+25: LockTable called: 2 lock on table 0 in X mode
+25: LockTable called: 3 lock on table 0 in X mode
+25: LockTable called: 4 lock on table 0 in X mode
+25: LockTable called: 5 lock on table 0 in X mode
+25: LockTable called: 6 lock on table 0 in X mode
+25: LockTable called: 7 lock on table 0 in X mode
+25: LockTable called: 8 lock on table 0 in X mode
+25: LockTable called: 9 lock on table 0 in X mode
+25: UnlockTable called: 0 unlock on table 0
+25: txn: 0 remove X lock on table: 0
+25: txn: 9 add X lock on table: 0
+25: UnlockTable called: 9 unlock on table 0
+25: txn: 9 remove X lock on table: 0
+25: Destructor called
+25: LockTable called: 0 lock on table 0 in X mode
+25: txn: 0 add X lock on table: 0
+25: LockTable called: 1 lock on table 0 in X mode
+25: LockTable called: 2 lock on table 0 in X mode
+25: UnlockTable called: 0 unlock on table 0
+25: txn: 0 remove X lock on table: 0
+25: txn: 2 add X lock on table: 0
+25: Destructor called
+25: LockTable called: 0 lock on table 0 in X mode
+25: txn: 0 add X lock on table: 0
+25: LockTable called: 1 lock on table 0 in X mode
+25: LockTable called: 2 lock on table 0 in X mode
+25: LockTable called: 3 lock on table 0 in X mode
+25: LockTable called: 4 lock on table 0 in X mode
+25: LockTable called: 5 lock on table 0 in X mode
+25: LockTable called: 6 lock on table 0 in X mode
+25: LockTable called: 7 lock on table 0 in X mode
+25: LockTable called: 8 lock on table 0 in X mode
+25: LockTable called: 9 lock on table 0 in X mode
+25: UnlockTable called: 0 unlock on table 0
+25: txn: 0 remove X lock on table: 0
+25: txn: 9 add X lock on table: 0
+25: UnlockTable called: 9 unlock on table 0
+25: txn: 9 remove X lock on table: 0
+25: Destructor called
+25: LockTable called: 0 lock on table 0 in X mode
+25: txn: 0 add X lock on table: 0
+25: LockTable called: 1 lock on table 0 in X mode
+25: LockTable called: 2 lock on table 0 in X mode
+25: UnlockTable called: 0 unlock on table 0
+25: txn: 0 remove X lock on table: 0
+25: txn: 2 add X lock on table: 0
+25: Destructor called
+25: LockTable called: 0 lock on table 0 in X mode
+25: txn: 0 add X lock on table: 0
+25: LockTable called: 1 lock on table 0 in X mode
+25: LockTable called: 2 lock on table 0 in X mode
+25: LockTable called: 3 lock on table 0 in X mode
+25: LockTable called: 4 lock on table 0 in X mode
+25: LockTable called: 5 lock on table 0 in X mode
+25: LockTable called: 6 lock on table 0 in X mode
+25: LockTable called: 7 lock on table 0 in X mode
+25: LockTable called: 8 lock on table 0 in X mode
+25: LockTable called: 9 lock on table 0 in X mode
+25: UnlockTable called: 0 unlock on table 0
+25: txn: 0 remove X lock on table: 0
+25: txn: 9 add X lock on table: 0
+25: UnlockTable called: 9 unlock on table 0
+25: txn: 9 remove X lock on table: 0
+25: Destructor called
+25: LockTable called: 0 lock on table 0 in X mode
+25: txn: 0 add X lock on table: 0
+25: LockTable called: 1 lock on table 0 in X mode
+25: LockTable called: 2 lock on table 0 in X mode
+25: UnlockTable called: 0 unlock on table 0
+25: txn: 0 remove X lock on table: 0
+25: txn: 2 add X lock on table: 0
+25: Destructor called
+25: LockTable called: 0 lock on table 0 in X mode
+25: txn: 0 add X lock on table: 0
+25: LockTable called: 1 lock on table 0 in X mode
+25: LockTable called: 2 lock on table 0 in X mode
+25: LockTable called: 3 lock on table 0 in X mode
+25: LockTable called: 4 lock on table 0 in X mode
+25: LockTable called: 5 lock on table 0 in X mode
+25: LockTable called: 6 lock on table 0 in X mode
+25: LockTable called: 7 lock on table 0 in X mode
+25: LockTable called: 8 lock on table 0 in X mode
+25: LockTable called: 9 lock on table 0 in X mode
+25: UnlockTable called: 0 unlock on table 0
+25: txn: 0 remove X lock on table: 0
+25: txn: 9 add X lock on table: 0
+25: UnlockTable called: 9 unlock on table 0
+25: txn: 9 remove X lock on table: 0
+25: Destructor called
