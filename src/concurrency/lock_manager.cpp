@@ -198,6 +198,7 @@ void LockManager::UpdateTxnState(Transaction *txn, LockMode lock_mode) {
       if (lock_mode == LockMode::EXCLUSIVE) {
         txn->SetState(TransactionState::SHRINKING);
       }
+      // growing 状态下 读可提交的隔离度解开s锁不改变2pl
       break;
     case IsolationLevel::READ_UNCOMMITTED:
       if (lock_mode == LockMode::EXCLUSIVE) {
@@ -362,13 +363,11 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
   // LockTableInfo(txn, oid, lock_mode);
   if (table_lock_map_.find(oid) != table_lock_map_.end()) {
     auto queue = table_lock_map_[oid];
-    queue->latch_.lock();  // 申请队列的的锁
-
-    table_lock_map_latch_.unlock();  // 释放 map的锁
+    std::unique_lock<std::mutex> lk(queue->latch_);  // 用未上锁的queue->latch_构造lk
+    table_lock_map_latch_.unlock();                  // 释放 map的锁
     std::shared_ptr<LockRequest> request;
     if (need_upgrade) {
       if (queue->upgrading_ != INVALID_TXN_ID) {  // 已经有一个事务的锁正在升级
-        queue->latch_.unlock();
         txn->SetState(TransactionState::ABORTED);
         throw bustub::TransactionAbortException(txn_id, AbortReason::UPGRADE_CONFLICT);
         return false;
@@ -396,8 +395,6 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
       queue->request_queue_.emplace_back(request);                      // 新的请求放在末尾
     }
 
-    queue->latch_.unlock();
-    std::unique_lock<std::mutex> lk(queue->latch_);
     while (!GrantLock(txn, queue, request)) {
       queue->cv_.wait(lk);
       if (txn->GetState() == TransactionState::ABORTED) {
@@ -410,7 +407,6 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
         if (queue->upgrading_ == txn_id) {
           queue->upgrading_ = INVALID_TXN_ID;
         }
-        // queue->latch_.unlock();
         queue->cv_.notify_all();
         return false;
       }
@@ -422,7 +418,6 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
       queue->upgrading_ = INVALID_TXN_ID;
     }
     UpdateTableLockSet(txn, oid, lock_mode, true);
-    // queue->latch_.unlock();  // 释放 队列的锁
 
   } else {                                                                 // 没有相应的队列
     table_lock_map_[oid] = std::make_shared<LockRequestQueue>();           // 新建一个队列
@@ -519,13 +514,11 @@ auto LockManager::LockRow(Transaction *txn, LockMode lock_mode, const table_oid_
   row_lock_map_latch_.lock();
   if (row_lock_map_.find(rid) != row_lock_map_.end()) {  // 请求队列存在
     auto queue = row_lock_map_[rid];
-    queue->latch_.lock();
-
+    std::unique_lock<std::mutex> lk(queue->latch_);
     row_lock_map_latch_.unlock();
     std::shared_ptr<LockRequest> request;
     if (need_upgrade) {  // 需要升级
       if (queue->upgrading_ != INVALID_TXN_ID) {
-        queue->latch_.unlock();  // 注意分支解锁
         txn->SetState(TransactionState::ABORTED);
         throw bustub::TransactionAbortException(txn_id, AbortReason::UPGRADE_CONFLICT);
         return false;
@@ -554,8 +547,6 @@ auto LockManager::LockRow(Transaction *txn, LockMode lock_mode, const table_oid_
       queue->request_queue_.emplace_back(request);
     }
 
-    queue->latch_.unlock();
-    std::unique_lock<std::mutex> lk(queue->latch_);
     while (!GrantLock(txn, queue, request)) {
       queue->cv_.wait(lk);
       if (txn->GetState() == TransactionState::ABORTED) {
@@ -578,7 +569,6 @@ auto LockManager::LockRow(Transaction *txn, LockMode lock_mode, const table_oid_
       queue->upgrading_ = INVALID_TXN_ID;
     }
     UpdateRowLockSet(txn, oid, rid, lock_mode, true);
-    // queue->latch_.unlock();  // 释放 队列的锁
   } else {  // 请求队列不存在
     row_lock_map_[rid] = std::make_shared<LockRequestQueue>();
     auto request = std::make_shared<LockRequest>(txn_id, lock_mode, oid, rid);
