@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "concurrency/transaction.h"
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/delete_plan.h"
@@ -64,5 +65,7 @@ class DeleteExecutor : public AbstractExecutor {
   std::vector<IndexInfo *> index_info_;
   TableInfo *table_info_;
   bool has_output_{false};
+  table_oid_t table_id_;
+  Transaction *txn_;
 };
 }  // namespace bustub

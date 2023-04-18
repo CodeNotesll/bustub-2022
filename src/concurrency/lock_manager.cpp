@@ -29,6 +29,9 @@
 #define RED "\033[31m"
 #define YELLOW "\033[33m"
 #define END "\033[0m"
+#define WHITE 0  // unvisted
+#define GRAY 1   // visiting
+#define BLACK 2  // visited，节点以及相邻节点被访问过
 namespace bustub {
 
 void LockManager::UnLockRowInfo(Transaction *txn, const table_oid_t &oid, const RID &rid) {
@@ -81,11 +84,9 @@ void LockManager::UpdateTableLockSet(Transaction *txn, table_oid_t oid, LockMode
     case LockMode::SHARED: {
       auto s_lock_set = txn->GetSharedTableLockSet();
       if (add) {
-        // std::cout << "txn: " << txn_id << " add S lock on table: " << oid << std::endl;
         s_lock_set->insert(oid);
       } else {
         assert(s_lock_set->find(oid) != s_lock_set->end());
-        // std::cout << "txn: " << txn_id << " remove S lock on table:" << oid << std::endl;
         s_lock_set->erase(oid);
       }
       break;
@@ -93,11 +94,9 @@ void LockManager::UpdateTableLockSet(Transaction *txn, table_oid_t oid, LockMode
     case LockMode::SHARED_INTENTION_EXCLUSIVE: {
       auto six_lock_set = txn->GetSharedIntentionExclusiveTableLockSet();
       if (add) {
-        // std::cout << "txn: " << txn_id << " add SIX lock on table: " << oid << std::endl;
         six_lock_set->insert(oid);
       } else {
         assert(six_lock_set->find(oid) != six_lock_set->end());
-        // std::cout << "txn: " << txn_id << " remove SIX lock on table: " << oid << std::endl;
         six_lock_set->erase(oid);
       }
       break;
@@ -105,11 +104,9 @@ void LockManager::UpdateTableLockSet(Transaction *txn, table_oid_t oid, LockMode
     case LockMode::EXCLUSIVE: {
       auto x_lock_set = txn->GetExclusiveTableLockSet();
       if (add) {
-        // std::cout << "txn: " << txn_id << " add X lock on table: " << oid << std::endl;
         x_lock_set->insert(oid);
       } else {
         assert(x_lock_set->find(oid) != x_lock_set->end());
-        // std::cout << "txn: " << txn_id << " remove X lock on table: " << oid << std::endl;
         x_lock_set->erase(oid);
       }
       break;
@@ -117,11 +114,9 @@ void LockManager::UpdateTableLockSet(Transaction *txn, table_oid_t oid, LockMode
     case LockMode::INTENTION_EXCLUSIVE: {
       auto ix_lock_set = txn->GetIntentionExclusiveTableLockSet();
       if (add) {
-        // std::cout << "txn: " << txn_id << " add IX lock on table: " << oid << std::endl;
         ix_lock_set->insert(oid);
       } else {
         assert(ix_lock_set->find(oid) != ix_lock_set->end());
-        // std::cout << "txn: " << txn_id << " remove IX lock on table: " << oid << std::endl;
         ix_lock_set->erase(oid);
       }
       break;
@@ -129,11 +124,9 @@ void LockManager::UpdateTableLockSet(Transaction *txn, table_oid_t oid, LockMode
     case LockMode::INTENTION_SHARED: {
       auto is_lock_set = txn->GetIntentionSharedTableLockSet();
       if (add) {
-        //  std::cout << "txn: " << txn_id << " add IS lock on table: " << oid << std::endl;
         is_lock_set->insert(oid);
       } else {
         assert(is_lock_set->find(oid) != is_lock_set->end());
-        // std::cout << "txn: " << txn_id << " remove IS lock on table: " << oid << std::endl;
         is_lock_set->erase(oid);
       }
       break;
@@ -152,14 +145,12 @@ void LockManager::UpdateRowLockSet(Transaction *txn, table_oid_t oid, RID rid, L
       if (add) {
         exclusive_lock_set->insert(rid);
         (*x_row_lock_set)[oid].insert(rid);
-        // std::cout << "Txn: " << txn_id << " add X lock on table: " << oid << " Rid: " << rid;
       } else {
         assert(exclusive_lock_set->find(rid) != exclusive_lock_set->end());
         exclusive_lock_set->erase(rid);
 
         assert(x_row_lock_set->find(oid) != x_row_lock_set->end());
         assert((*x_row_lock_set)[oid].find(rid) != (*x_row_lock_set)[oid].end());
-        // std::cout << "Txn: " << txn_id << " remove X lock on table: " << oid << " Rid: " << rid;
 
         (*x_row_lock_set)[oid].erase(rid);
       }
@@ -169,13 +160,11 @@ void LockManager::UpdateRowLockSet(Transaction *txn, table_oid_t oid, RID rid, L
       if (add) {
         shared_lock_set->insert(rid);
         (*s_row_lock_set)[oid].insert(rid);
-        // std::cout << "Txn: " << txn_id << " add S lock on table: " << oid << " Rid: " << rid;
       } else {
         assert(shared_lock_set->find(rid) != shared_lock_set->end());
         shared_lock_set->erase(rid);
         assert(s_row_lock_set->find(oid) != s_row_lock_set->end());
         assert((*s_row_lock_set)[oid].find(rid) != (*s_row_lock_set)[oid].end());
-        // std::cout << "Txn: " << txn_id << " remove S lock on table: " << oid << " Rid: " << rid;
         (*s_row_lock_set)[oid].erase(rid);
       }
       break;
@@ -216,7 +205,8 @@ void LockManager::UpdateTxnState(Transaction *txn, LockMode lock_mode) {
 void LockManager::CheckCompatible(Transaction *txn, LockMode lock_mode) {
   if (txn->GetState() == TransactionState::ABORTED || txn->GetState() == TransactionState::COMMITTED) {
     txn->SetState(TransactionState::ABORTED);
-    throw std::logic_error("Lock request in ABORTED, COMMITTED state");
+    // throw std::logic_error("Lock request in ABORTED, COMMITTED state");
+    throw bustub::TransactionAbortException(txn->GetTransactionId(), AbortReason::LOCK_ON_SHRINKING);
   }
   if (txn->GetState() == TransactionState::SHRINKING) {
     switch (txn->GetIsolationLevel()) {
@@ -398,7 +388,6 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
     while (!GrantLock(txn, queue, request)) {
       queue->cv_.wait(lk);
       if (txn->GetState() == TransactionState::ABORTED) {
-        // std::cout << "txn: " << txn_id << " aborted " << std::endl;
         auto it = queue->request_queue_.begin();
         while (it != queue->request_queue_.end() && (*it) != request) {
           it++;
@@ -412,7 +401,6 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
       }
     }
     //  持有queue->latch_
-    // std::cout << "Txn: " << txn_id << " granted lock on table: " << oid << std::endl;
     request->granted_ = true;
     if (queue->upgrading_ == txn_id) {
       queue->upgrading_ = INVALID_TXN_ID;
@@ -424,7 +412,6 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
     auto request = std::make_shared<LockRequest>(txn_id, lock_mode, oid);  // 新建一个请求节点
 
     request->granted_ = true;
-    // std::cout << "Txn: " << txn_id << " granted lock on table: " << oid << std::endl;
     table_lock_map_[oid]->request_queue_.emplace_back(request);
 
     // 将获得的锁加入 事务的 lock set
@@ -558,7 +545,6 @@ auto LockManager::LockRow(Transaction *txn, LockMode lock_mode, const table_oid_
         if (queue->upgrading_ == txn_id) {
           queue->upgrading_ = INVALID_TXN_ID;
         }
-        // queue->latch_.unlock();
         queue->cv_.notify_all();  // 这里需要吗
         return false;
       }
@@ -616,50 +602,48 @@ auto LockManager::UnlockRow(Transaction *txn, const table_oid_t &oid, const RID 
 }
 
 void LockManager::AddEdge(txn_id_t t1, txn_id_t t2) {  // t1 ----> t2
-  // std::cout << "AddEdge: " << t1 << " ---> " << t2 << std::endl;
   waits_for_[t1].insert(t2);
 }
 
 void LockManager::RemoveEdge(txn_id_t t1, txn_id_t t2) {
   assert(waits_for_[t1].find(t2) != waits_for_[t1].end());
-  // std::cout << "RemoveEdge: " << t1 << " ---> " << t2 << std::endl;
   waits_for_[t1].erase(t2);
 }
 
 auto LockManager::HasCycle(txn_id_t *txn_id) -> bool {
-  // std::cout << "HasCycle called" << std::endl;
-  std::map<txn_id_t, int> state;
-  std::map<txn_id_t, int> parent;
+  std::unordered_map<txn_id_t, int> color;
+  std::unordered_map<txn_id_t, int> parent;
   std::set<txn_id_t> txns;
   for (const auto &[txn, _] : waits_for_) {
     txns.insert(txn);
   }
-  // dfs检测环路
-  // 从源点 s 出发 是否能找到回路
-  std::function<bool(int)> dfs = [&](txn_id_t s) -> bool {
-    state[s] = 1;  // 访问过
-    // 访问下一节点
-    for (const auto &t : waits_for_[s]) {
-      if (state[t] == 1) {  // 产生回路
+  std::function<bool(int)> dfs = [&](txn_id_t s) -> bool {  // 从节点s出发是否有环
+    color[s] = GRAY;
+    for (const auto &next : waits_for_[s]) {
+      if (color[next] == BLACK) {
+        continue;
+      }
+      if (color[next] == GRAY) {  // next -->....s-->next
+        txn_id_t max_txn = s;
         txn_id_t now = s;
-        txn_id_t max_txn_id = now;
-        while (now != t) {
+        while (now != next) {
           now = parent[now];
-          max_txn_id = std::max(max_txn_id, now);
+          max_txn = std::max(max_txn, now);
         }
-        *txn_id = max_txn_id;
+        *txn_id = max_txn;
         return true;
       }
-      parent[t] = s;
-      if (dfs(t)) {
+      parent[next] = s;  // 表示s-->next有条路径
+      if (dfs(next)) {
         return true;
       }
     }
+    color[s] = BLACK;
     return false;
   };
   for (const auto &begtxn : txns) {
-    for (const auto &[txn, _] : waits_for_) {
-      state[txn] = 0;
+    for (const auto &txn : txns) {
+      color[txn] = WHITE;
       parent[txn] = -1;
     }
     if (dfs(begtxn)) {

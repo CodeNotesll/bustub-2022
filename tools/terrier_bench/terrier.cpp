@@ -152,7 +152,7 @@ auto main(int argc, char **argv) -> int {
   if (enable_index) {
     auto schema = "CREATE INDEX nftid on nft(id);";
     std::cerr << "x: create index" << std::endl;
-    bustub->ExecuteSql(schema, writer);
+    bustub->ExecuteSql(schema, writer); // txn = 0
   } else {
     std::cerr << "x: create index disabled" << std::endl;
   }
@@ -197,13 +197,22 @@ auto main(int argc, char **argv) -> int {
     auto writer = bustub::SimpleStreamWriter(ss, true);
     auto txn = bustub->txn_manager_->Begin(nullptr, bustub::IsolationLevel::REPEATABLE_READ);
     bustub->ExecuteSqlTxn(query, writer, txn);
-    bustub->txn_manager_->Commit(txn);
+    bustub->txn_manager_->Commit(txn);   // txn = 1
     delete txn;
     if (ss.str() != fmt::format("{}\t\n", BUSTUB_NFT_NUM)) {
       fmt::print("unexpected result \"{}\" when insert\n", ss.str());
       exit(1);
     }
   }
+  /*{
+   std::stringstream ss;
+   auto writer = bustub::SimpleStreamWriter(ss, true);
+   auto txn = bustub->txn_manager_->Begin(nullptr, bustub::IsolationLevel::REPEATABLE_READ);
+   bustub->ExecuteSqlTxn("SELECT * FROM nft;", writer, txn);
+   bustub->txn_manager_->Commit(txn);
+   delete txn;
+   fmt::print("--- YOUR RESULT ---\n{}\n", ss.str());
+  }*/ //  (0,0), (1,0), (2,0),.....
 
   std::cerr << "x: benchmark start" << std::endl;
 
@@ -213,7 +222,7 @@ auto main(int argc, char **argv) -> int {
   total_metrics.Begin();
 
   for (size_t thread_id = 0; thread_id < BUSTUB_TERRIER_THREAD; thread_id++) {
-    threads.emplace_back(std::thread([thread_id, &bustub, enable_update, duration_ms, &total_metrics] {
+    threads.emplace_back([thread_id, &bustub, enable_update, duration_ms, &total_metrics] {
       const size_t nft_range_size = BUSTUB_NFT_NUM / BUSTUB_TERRIER_THREAD;
       const size_t nft_range_begin = thread_id * nft_range_size;
       const size_t nft_range_end = (thread_id + 1) * nft_range_size;
@@ -300,11 +309,11 @@ auto main(int argc, char **argv) -> int {
       }
 
       total_metrics.ReportUpdate(metrics.aborted_txn_cnt_, metrics.committed_txn_cnt_);
-    }));
+    });
   }
 
   for (size_t thread_id = 0; thread_id < BUSTUB_TERRIER_THREAD; thread_id++) {
-    threads.emplace_back(std::thread([thread_id, &bustub, duration_ms, &total_metrics] {
+    threads.emplace_back([thread_id, &bustub, duration_ms, &total_metrics] {
       std::random_device r;
       std::default_random_engine gen(r());
       std::uniform_int_distribution<int> terrier_uniform_dist(0, BUSTUB_TERRIER_CNT - 1);
@@ -338,7 +347,7 @@ auto main(int argc, char **argv) -> int {
       }
 
       total_metrics.ReportCount(metrics.aborted_txn_cnt_, metrics.committed_txn_cnt_);
-    }));
+    });
   }
 
   for (auto &thread : threads) {

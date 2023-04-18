@@ -14,6 +14,7 @@
 
 #include <vector>
 
+#include "concurrency/transaction.h"
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/seq_scan_plan.h"
@@ -53,5 +54,8 @@ class SeqScanExecutor : public AbstractExecutor {
   const SeqScanPlanNode *plan_;
   TableIterator table_iterator_;
   TableHeap *heap_;
+  table_oid_t table_id_;
+  Transaction *txn_;
+  std::vector<RID> rids_;
 };
 }  // namespace bustub

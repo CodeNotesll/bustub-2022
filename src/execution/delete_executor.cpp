@@ -12,6 +12,8 @@
 
 #include <memory>
 
+#include "concurrency/lock_manager.h"
+#include "concurrency/transaction.h"
 #include "execution/executors/delete_executor.h"
 
 namespace bustub {
@@ -21,12 +23,21 @@ DeleteExecutor::DeleteExecutor(ExecutorContext *exec_ctx, const DeletePlanNode *
     : AbstractExecutor(exec_ctx), plan_(plan), child_executor_(std::move(child_executor)) {}
 
 void DeleteExecutor::Init() {
-  child_executor_->Init();
-  table_oid_t table_id = plan_->TableOid();  // 要删除的表
-  table_info_ = exec_ctx_->GetCatalog()->GetTable(table_id);
+  table_id_ = plan_->TableOid();  // 要删除的表
+  table_info_ = exec_ctx_->GetCatalog()->GetTable(table_id_);
   heap_ = table_info_->table_.get();
   std::string table_name = table_info_->name_;
   index_info_ = exec_ctx_->GetCatalog()->GetTableIndexes(table_name);  // 这张表所有的index
+  child_executor_->Init();
+  txn_ = exec_ctx_->GetTransaction();
+  try {
+    exec_ctx_->GetLockManager()->LockTable(txn_, LockManager::LockMode::INTENTION_EXCLUSIVE, table_id_);
+  } catch (bustub::TransactionAbortException &ex) {
+#ifndef NDEBUG
+    LOG_ERROR("Error Encountered in Executor Execution: %s", ex.what());
+#endif
+    throw bustub::ExecutionException("Delete executor LockTable Fail");
+  }
 }
 
 auto DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
@@ -44,8 +55,16 @@ auto DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
 
   int64_t n = ridvec.size();
   Value v(TypeId::BIGINT, n);
-
   for (int64_t i = 0; i < n; ++i) {
+    try {  // 加锁
+      exec_ctx_->GetLockManager()->LockRow(txn_, LockManager::LockMode::EXCLUSIVE, table_id_, ridvec[i]);
+    } catch (bustub::TransactionAbortException &ex) {
+#ifndef NDEBUG
+      LOG_ERROR("Error Encountered in Executor Execution: %s", ex.what());
+#endif
+      throw bustub::ExecutionException("Delete executor LockRow Fail");
+      return false;
+    }
     heap_->MarkDelete(ridvec[i], exec_ctx_->GetTransaction());
     for (const auto &index : index_info_) {
       const auto &key_attrs = index->index_->GetMetadata()->GetKeyAttrs();

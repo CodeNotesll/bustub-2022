@@ -23,6 +23,7 @@
 #include "buffer/buffer_pool_manager_instance.h"
 #include "catalog/table_generator.h"
 #include "common/bustub_instance.h"
+#include "common/logger.h"
 #include "concurrency/transaction_manager.h"
 #include "execution/execution_engine.h"
 #include "execution/executor_context.h"
@@ -68,7 +69,7 @@ void CheckTxnRowLockSize(Transaction *txn, size_t shared_size, size_t exclusive_
 }
 
 // NOLINTNEXTLINE
-TEST_F(TransactionTest, DISABLED_SimpleInsertRollbackTest) {
+TEST_F(TransactionTest, SimpleInsertRollbackTest) {
   // txn1: INSERT INTO empty_table2 VALUES (200, 20), (201, 21), (202, 22)
   // txn1: abort
   // txn2: SELECT * FROM empty_table2;
@@ -91,8 +92,8 @@ TEST_F(TransactionTest, DISABLED_SimpleInsertRollbackTest) {
 }
 
 // NOLINTNEXTLINE
-TEST_F(TransactionTest, DISABLED_DirtyReadsTest) {
-  bustub_->GenerateTestTable();
+TEST_F(TransactionTest, DirtyReadsTest) {
+  bustub_->GenerateTestTable();  // 0
 
   // txn1: INSERT INTO empty_table2 VALUES (200, 20), (201, 21), (202, 22)
   // txn2: SELECT * FROM empty_table2;
@@ -100,7 +101,7 @@ TEST_F(TransactionTest, DISABLED_DirtyReadsTest) {
 
   auto noop_writer = NoopWriter();
 
-  bustub_->ExecuteSql("CREATE TABLE empty_table2 (colA int, colB int)", noop_writer);
+  bustub_->ExecuteSql("CREATE TABLE empty_table2 (colA int, colB int)", noop_writer);  // 1
 
   auto *txn1 = bustub_->txn_manager_->Begin(nullptr, IsolationLevel::READ_UNCOMMITTED);
   bustub_->ExecuteSqlTxn("INSERT INTO empty_table2 VALUES (200, 20), (201, 21), (202, 22)", noop_writer, txn1);
@@ -112,10 +113,10 @@ TEST_F(TransactionTest, DISABLED_DirtyReadsTest) {
 
   EXPECT_EQ(ss.str(), "200\t20\t\n201\t21\t\n202\t22\t\n");
 
-  bustub_->txn_manager_->Commit(txn2);
+  bustub_->txn_manager_->Commit(txn2);  // 3
   delete txn2;
 
-  bustub_->txn_manager_->Abort(txn1);
+  bustub_->txn_manager_->Abort(txn1);  // 2
   delete txn1;
 }
 
