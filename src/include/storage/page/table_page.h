@@ -20,6 +20,7 @@
 #include "storage/page/page.h"
 #include "storage/table/tuple.h"
 
+// 左移31位
 static constexpr uint64_t DELETE_MASK = (1U << (8 * sizeof(uint32_t) - 1));
 
 namespace bustub {
@@ -140,6 +141,24 @@ class TablePage : public Page {
 
  private:
   static_assert(sizeof(page_id_t) == 4);
+
+  /**
+   * Slotted page format:
+   *  ---------------------------------------------------------
+   *  | HEADER | ... FREE SPACE ... | ... INSERTED TUPLES ... |
+   *  ---------------------------------------------------------
+   *                                ^
+   *                                free space pointer
+   *
+   *  Header format (size in bytes):
+   *  ----------------------------------------------------------------------------
+   *  | PageId (4)| LSN (4)| PrevPageId (4)| NextPageId (4)| FreeSpacePointer(4) |
+   *  ----------------------------------------------------------------------------
+   *  ----------------------------------------------------------------
+   *  | TupleCount (4) | Tuple_1 offset (4) | Tuple_1 size (4) | ... |
+   *  ----------------------------------------------------------------
+   *
+   */
 
   static constexpr size_t SIZE_TABLE_PAGE_HEADER = 24;
   static constexpr size_t SIZE_TUPLE = 8;

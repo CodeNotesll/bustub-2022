@@ -205,8 +205,8 @@ void LockManager::UpdateTxnState(Transaction *txn, LockMode lock_mode) {
 void LockManager::CheckCompatible(Transaction *txn, LockMode lock_mode) {
   if (txn->GetState() == TransactionState::ABORTED || txn->GetState() == TransactionState::COMMITTED) {
     txn->SetState(TransactionState::ABORTED);
-    // throw std::logic_error("Lock request in ABORTED, COMMITTED state");
-    throw bustub::TransactionAbortException(txn->GetTransactionId(), AbortReason::LOCK_ON_SHRINKING);
+    throw std::logic_error("Lock request in ABORTED, COMMITTED state");
+    // throw bustub::TransactionAbortException(txn->GetTransactionId(), AbortReason::LOCK_ON_SHRINKING);
   }
   if (txn->GetState() == TransactionState::SHRINKING) {
     switch (txn->GetIsolationLevel()) {

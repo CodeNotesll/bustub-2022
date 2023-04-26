@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "execution/executors/seq_scan_executor.h"
+#include <stdexcept>
 #include "common/exception.h"
 #include "common/rid.h"
 #include "concurrency/lock_manager.h"
@@ -75,6 +76,12 @@ auto SeqScanExecutor::Next(Tuple *tuple, RID *rid) -> bool {
     try {
       exec_ctx_->GetLockManager()->LockRow(txn_, LockManager::LockMode::SHARED, table_id_, tuple->GetRid());
     } catch (bustub::TransactionAbortException &ex) {
+#ifndef NDEBUG
+      LOG_ERROR("Error Encountered in Executor Execution: %s", ex.what());
+#endif
+      throw bustub::ExecutionException("Seq_scan_executor LockRow Fail");
+      return false;
+    } catch (std::logic_error &ex) {
 #ifndef NDEBUG
       LOG_ERROR("Error Encountered in Executor Execution: %s", ex.what());
 #endif
