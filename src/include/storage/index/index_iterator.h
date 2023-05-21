@@ -27,7 +27,7 @@ class IndexIterator {
 
   IndexIterator();
 
-  ~IndexIterator();  // NOLINT
+  ~IndexIterator() = default;  // NOLINT
 
   auto IsEnd() -> bool;
 

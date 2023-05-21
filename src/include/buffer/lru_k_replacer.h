@@ -136,6 +136,8 @@ class LRUKReplacer {
   auto Size() -> size_t;
 
  private:
+  auto FindLessK(frame_id_t *id) -> bool;
+  auto FindEqualK(frame_id_t *id) -> bool;
   // TODO(student): implement me! You can replace these member variables as you like.
   // Remove maybe_unused if you start using them.
   size_t curr_size_{0};
@@ -146,7 +148,7 @@ class LRUKReplacer {
   struct Record {
     frame_id_t frame_id_;
     bool evictable_;
-    std::queue<size_t> que_;
+    std::queue<size_t> que_;  // 队头至队尾依次记录：相对于当前的第k次访问，k-1次访问，k-2次访问，。。。，1次访问
     explicit Record(frame_id_t frame_id) : frame_id_(frame_id) { evictable_ = false; }
   };
   std::list<Record> record_list_;

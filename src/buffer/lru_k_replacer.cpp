@@ -15,61 +15,64 @@ namespace bustub {
 
 LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k) {}
 
-auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
-  latch_.lock();
-  size_t distance = 0;
-  size_t eraliset_timestamp = ++current_timestamp_;
+auto LRUKReplacer::FindLessK(frame_id_t *id) -> bool {
+  frame_id_t t = 0;
   bool found = false;
-  frame_id_t id;
+  size_t earliest_timestamp = current_timestamp_;
   for (const auto &p : record_list_) {
-    if (!p.evictable_) {
-      continue;
-    }
-    if (p.que_.size() < k_) {  // find inf
-      if (eraliset_timestamp > p.que_.front()) {
-        eraliset_timestamp = p.que_.front();
-        id = p.frame_id_;
+    if (p.evictable_ && p.que_.size() < k_) {  // find inf
+      if (earliest_timestamp > p.que_.front()) {
+        earliest_timestamp = p.que_.front();
+        t = p.frame_id_;
         found = true;
       }
     }
   }
   if (found) {
-    *frame_id = id;
-    auto p = mp_[id];
-    record_list_.erase(p);
-    curr_size_--;
-    mp_.erase(id);
-    latch_.unlock();
+    *id = t;
     return true;
   }
+  return false;
+}
+auto LRUKReplacer::FindEqualK(frame_id_t *id) -> bool {
+  frame_id_t t = 0;
+  bool found = false;
+  size_t earliest_timestamp = current_timestamp_;
+  for (const auto &p : record_list_) {
+    if (p.evictable_ && p.que_.size() == k_) {
+      if (earliest_timestamp > p.que_.front()) {  // 找到第k次访问距离现在最远的
+        earliest_timestamp = p.que_.front();
+        t = p.frame_id_;
+        found = true;
+      }
+    }
+  }
+  if (found) {
+    *id = t;
+    return true;
+  }
+  return false;
+}
+// 先找 访问小于k次的frame, 找到最早访问的那个
+// 再找 访问等于k次的frame
 
-  for (const auto &p : record_list_) {
-    if (!p.evictable_) {
-      continue;
-    }
-    if (p.que_.size() == k_) {
-      if (distance < current_timestamp_ - p.que_.front()) {
-        distance = current_timestamp_ - p.que_.front();
-        id = p.frame_id_;
-        found = true;
-      }
-    }
-  }
-  if (found) {
+auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
+  std::lock_guard<std::mutex> lk(latch_);
+  ++current_timestamp_;
+  frame_id_t id;
+  if (FindLessK(&id) || FindEqualK(&id)) {
     *frame_id = id;
     auto p = mp_[id];
     record_list_.erase(p);
     curr_size_--;
     mp_.erase(id);
-    latch_.unlock();
     return true;
   }
-  latch_.unlock();
   return false;
 }
 
 void LRUKReplacer::RecordAccess(frame_id_t frame_id) {
-  latch_.lock();
+  std::lock_guard<std::mutex> lk(latch_);
   BUSTUB_ASSERT(frame_id < static_cast<int32_t>(replacer_size_), "frame_id should be less than replacer_size_");
   current_timestamp_++;
   if (mp_.count(frame_id) != 0) {
@@ -84,14 +87,12 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id) {
     record_list_.insert(record_list_.begin(), rec);
     mp_[frame_id] = record_list_.begin();
   }
-  latch_.unlock();
 }
 
 void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
-  latch_.lock();
+  std::lock_guard<std::mutex> lk(latch_);
   BUSTUB_ASSERT(frame_id < static_cast<int32_t>(replacer_size_), "frame_id should be less than replacer_size_");
   if (mp_.count(frame_id) == 0) {  // 还没有记录
-    latch_.unlock();
     return;
   }
   auto p = mp_[frame_id];
@@ -102,14 +103,12 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
     curr_size_--;
   }
   p->evictable_ = set_evictable;
-  latch_.unlock();
 }
 
 void LRUKReplacer::Remove(frame_id_t frame_id) {  // O(1)
-  latch_.lock();
+  std::lock_guard<std::mutex> lk(latch_);
   BUSTUB_ASSERT(frame_id < static_cast<int32_t>(replacer_size_), "frame_id should be less than replacer_size_");
   if (mp_.count(frame_id) == 0U) {
-    latch_.unlock();
     return;
   }
   auto p = mp_[frame_id];
@@ -117,9 +116,11 @@ void LRUKReplacer::Remove(frame_id_t frame_id) {  // O(1)
   record_list_.erase(p);
   curr_size_--;
   mp_.erase(frame_id);
-  latch_.unlock();
 }
 
-auto LRUKReplacer::Size() -> size_t { return curr_size_; }
+auto LRUKReplacer::Size() -> size_t {
+  std::lock_guard<std::mutex> lk(latch_);
+  return curr_size_;
+}
 
 }  // namespace bustub

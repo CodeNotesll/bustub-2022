@@ -19,8 +19,8 @@ INDEXITERATOR_TYPE::IndexIterator(BufferPoolManager *buffer_pool_manager, page_i
                                   page_id_t next_id)
     : buffer_pool_manager_(buffer_pool_manager), leaf_id_(leaf_id), index_(index), size_(size), next_id_(next_id) {}
 
-INDEX_TEMPLATE_ARGUMENTS
-INDEXITERATOR_TYPE::~IndexIterator() = default;  // NOLINT
+// INDEX_TEMPLATE_ARGUMENTS
+// INDEXITERATOR_TYPE::~IndexIterator() = default;  // NOLINT
 
 INDEX_TEMPLATE_ARGUMENTS
 auto INDEXITERATOR_TYPE::IsEnd() -> bool { return leaf_id_ == INVALID_PAGE_ID; }
